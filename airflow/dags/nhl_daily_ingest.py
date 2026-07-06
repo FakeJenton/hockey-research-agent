@@ -9,8 +9,9 @@ where the repo, its virtualenv, and dbt profile live on the worker.
 Design notes:
 - BashOperators call the same CLI entry points a human runs, so local runs
   and orchestrated runs execute identical code paths.
-- The two ingest branches are independent (league-wide stats REST pulls vs
-  Penguins gamecenter pulls) and run in parallel, fanning into the load.
+- The three ingest branches are independent (season-level stats REST pulls,
+  league-wide gamecenter pulls, PIT boxscores) and run in parallel, fanning
+  into the load.
 - dbt tests gate the similarity job: if data quality fails, downstream
   marts are not rebuilt on top of bad inputs.
 - retries=2 with a 5 minute delay absorbs transient NHL API and BigQuery
@@ -48,13 +49,19 @@ with DAG(
     ingest_standings = BashOperator(
         task_id="ingest_standings",
         bash_command=f"cd {REPO} && {PYTHON} ingestion/ingest_season_stats.py",
-        doc_md="League-wide skater/goalie/team season stats plus the standings snapshot.",
+        doc_md="League-wide skater/goalie/team season stats (summary, realtime, TOI splits, bios) plus the standings snapshot.",
+    )
+
+    ingest_league_games = BashOperator(
+        task_id="ingest_league_games",
+        bash_command=f"cd {REPO} && {PYTHON} ingestion/ingest_league_games.py",
+        doc_md="Every team's schedule plus per-game right-rail payloads (cached; only new games hit the API).",
     )
 
     ingest_pit_boxscores = BashOperator(
         task_id="ingest_pit_boxscores",
         bash_command=f"cd {REPO} && {PYTHON} ingestion/ingest_pens_games.py",
-        doc_md="PIT schedule plus per-game boxscore and right-rail payloads (cached; only new games hit the API).",
+        doc_md="PIT per-game boxscores (player-level stats, retained for a future player-game mart).",
     )
 
     load_raw = BashOperator(
@@ -81,5 +88,6 @@ with DAG(
     )
 
     ingest_standings >> load_raw
+    ingest_league_games >> load_raw
     ingest_pit_boxscores >> load_raw
     load_raw >> dbt_run >> dbt_test >> compute_similarity

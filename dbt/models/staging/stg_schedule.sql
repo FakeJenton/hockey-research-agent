@@ -1,7 +1,7 @@
--- One row per PIT regular-season game, parsed from the raw schedule JSON.
+-- One row per 2025-26 regular-season game, parsed from the raw schedule JSON.
 with source as (
     select *
-    from {{ source('nhl_raw', 'raw_pit_schedule') }}
+    from {{ source('nhl_raw', 'raw_schedule') }}
 ),
 
 deduped as (

@@ -1,0 +1,77 @@
+[
+  {
+    "id": "pit_pk_last_15",
+    "question": "How has Pittsburgh's penalty kill performed over the last 15 games of the season?",
+    "answer_contains_any": ["64.9", "0.649", "65%"],
+    "sql_contains_any": ["mart_team_special_teams_rolling", "fct_team_games"]
+  },
+  {
+    "id": "non_pit_game_grain",
+    "question": "How did Toronto perform over their last 10 games of the season?",
+    "min_rows": 1,
+    "sql_contains_any": ["fct_team_games", "mart_team_special_teams_rolling"]
+  },
+  {
+    "id": "ev_points_per_60_honest",
+    "question": "Who led the league in even-strength points per 60 minutes among players with at least 40 games?",
+    "sql_contains_any": ["ev_points_per_60"],
+    "sql_must_not_contain": ["ev_points * 3600 / (toi", "ev_points / toi_minutes_per_gp", "/ (games_played * toi_minutes_per_gp"]
+  },
+  {
+    "id": "points_per_game_leader",
+    "question": "Who led the league in points per game among players with at least 50 games this season?",
+    "answer_contains_any": ["McDavid"]
+  },
+  {
+    "id": "pp_improvement_yoy",
+    "question": "Which team improved its power play percentage the most from 2024-25 to 2025-26?",
+    "answer_contains_any": ["Boston", "BOS"]
+  },
+  {
+    "id": "pp_goals_leader",
+    "question": "Who scored the most power play goals in 2025-26?",
+    "answer_contains_any": ["Johnston"]
+  },
+  {
+    "id": "goalie_save_pct",
+    "question": "Which goalie had the best save percentage among goalies with at least 40 starts?",
+    "sql_contains_any": ["mart_goalie_season"]
+  },
+  {
+    "id": "similarity_crosby",
+    "question": "Who are the most statistically similar players to Sidney Crosby?",
+    "sql_contains_any": ["mart_player_similarity"]
+  },
+  {
+    "id": "age_question",
+    "question": "Who was the youngest player to score 30 goals this season?",
+    "sql_contains_any": ["age", "birth_date"]
+  },
+  {
+    "id": "back_to_backs",
+    "question": "How many wins did Dallas have in the second game of back-to-backs this season?",
+    "sql_contains_any": ["fct_team_games"]
+  },
+  {
+    "id": "playoffs_decline",
+    "question": "Who won the Stanley Cup in 2026?",
+    "answer_contains_any": ["playoff", "regular season", "don't have", "does not", "doesn't", "no data"],
+    "max_sql": 1
+  },
+  {
+    "id": "xg_decline",
+    "question": "What was Toronto's expected goals percentage this season?",
+    "answer_contains_any": ["expected goals", "xG", "shot location", "not available", "don't have", "does not", "doesn't"]
+  },
+  {
+    "id": "sh_per60_decline",
+    "question": "Who had the best short-handed points per 60 minutes of short-handed ice time?",
+    "answer_contains_any": ["not", "cannot", "can't", "unable", "doesn't", "does not", "unavailable"],
+    "sql_must_not_contain": ["sh_points * 3600", "sh_points / "]
+  },
+  {
+    "id": "rolling_pp_any_team",
+    "question": "Which team had the hottest power play over its final 10 games?",
+    "sql_contains_any": ["pp_pct_last_10", "fct_team_games"]
+  }
+]

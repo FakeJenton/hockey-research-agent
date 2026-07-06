@@ -24,20 +24,23 @@ Query pattern: `?limit=-1&cayenneExp=seasonId=20252026 and gameTypeId=2` (URL-en
 |---|---|---|
 | `/skater/summary` | 940 | goals, assists, points, shots, shootingPct, plusMinus, penaltyMinutes, ppGoals, ppPoints, shGoals, shPoints, evGoals/evPoints, gameWinningGoals, faceoffWinPct, timeOnIcePerGame (seconds), positionCode, teamAbbrevs, gamesPlayed. **No hits or blocks.** |
 | `/skater/realtime` | 940 | Fills the summary gap: `hits`, `blockedShots`, `giveaways`, `takeaways`, plus per-60 rates. Same key (`playerId`, `seasonId`); joined to summary in staging. |
+| `/skater/timeonice` | 940 | Ice time by strength state (`evTimeOnIce`, `ppTimeOnIce`, `shTimeOnIce`, total; seconds). Required for honest strength-state per-60 rates; the summary report carries only all-strengths TOI. |
+| `/skater/bios` | 940 | `birthDate`, draft year/round/overall, height/weight, nationality. Age context for similarity comps. |
+| `/goalie/bios` | 98 | Same bio fields for goalies. |
 | `/goalie/summary` | 98 | wins/losses/otLosses, gamesStarted, savePct, goalsAgainstAverage, saves, shotsAgainst, shutouts, timeOnIce. |
 | `/team/summary` | 32 | goalsFor/AgainstPerGame, powerPlayPct, penaltyKillPct (+ net variants), faceoffWinPct, pointPct, shots for/against per game. |
 | `/team` | 62 | Team reference (id, fullName, triCode). Includes historical franchises; filter to the 32 active via join to `/team/summary`. |
 
-## Per-game PIT ingestion mapping (feeds `fct_pit_games`)
+## Per-game ingestion mapping (feeds `fct_team_games`)
 
-For each of the 82 regular-season games: schedule row gives date, opponent, home/away, scores, result; `right-rail.teamGameStats` gives PP conversion for both sides. For PIT specifically:
+League-wide for 2025-26: every team's schedule is pulled and deduped to the 1,312 unique games (each game appears on two schedules), then one right-rail per game. Schedule rows give date, home/away, scores, result; `right-rail.teamGameStats` gives PP conversion for both sides:
 
-- `pp_goals_for` / `pp_opportunities`: parse PIT side's `powerPlay` string `"G/OPP"`.
+- `pp_goals_for` / `pp_opportunities`: parse that team's side of the `powerPlay` string `"G/OPP"`.
 - `pp_goals_against` / `times_shorthanded`: parse the opponent side's `powerPlay` string.
 - `shots_for` / `shots_against`: `sog` categories by side.
 - PK% per game = 1 - (pp_goals_against / times_shorthanded).
 
-Boxscore is ingested alongside right-rail for game state/outcome confirmation and player-level game stats (future extension).
+Each game unions into two team-perspective rows (2,624 total). PIT boxscores are additionally ingested for player-level game stats (future player-game mart).
 
 ## Data model
 
@@ -68,28 +71,36 @@ erDiagram
         float pp_pct
         float pk_pct
     }
-    fct_pit_games {
-        int game_id PK
+    fct_team_games {
+        string game_team_key PK
+        string team_abbrev "one row per team per game"
         int game_number "1-82 chronological"
         string opponent
         int pp_goals_for
         int pp_goals_against
     }
-    mart_pit_special_teams_rolling {
-        int game_id PK
-        float pp_pct_last_15 "rolling 5/10/15 windows"
+    mart_team_special_teams_rolling {
+        string game_team_key PK
+        float pp_pct_last_15 "rolling 5/10/15 windows, per team"
         float pk_pct_last_15
+    }
+    mart_goalie_season {
+        string player_season_key PK
+        float save_pct
+        float goals_against_average
+        int games_started
     }
     mart_player_similarity {
         int player_id FK
         int comp_player_id FK
         float similarity_score
-        int rank "1-10"
+        int rank "1-25"
+        string profile "overall | offense | physical"
     }
 
     dim_players ||--o{ mart_player_season : "player_id"
     dim_teams ||--o{ mart_team_season : "team_id"
-    fct_pit_games ||--|| mart_pit_special_teams_rolling : "game_id"
+    fct_team_games ||--|| mart_team_special_teams_rolling : "game_team_key"
     mart_player_season ||--o{ mart_player_similarity : "player_id"
     mart_player_season ||--o{ mart_player_similarity : "comp_player_id"
 ```
@@ -104,9 +115,13 @@ Grain decisions worth noting:
 
 **Why text-to-SQL instead of embeddings:** the warehouse is small, relational, and precisely aggregable. Questions like "PK% over the last 15 games" have exact answers that vector similarity cannot produce. The agent's value is translation plus transparency: the UI shows every query it ran.
 
-**System prompt.** Built from `web/lib/schema.ts`: every mart table with columns, types, and one-line descriptions, four example question-to-SQL pairs, and behavioral rules (default season, PIT-only game grain, percentage formatting, admit when a question is unanswerable).
+**System prompt.** Built from `web/lib/schema.ts`: every mart table with columns, types, and one-line descriptions, example question-to-SQL pairs, behavioral rules (default season, percentage formatting, multi-turn pronoun resolution), and an explicit "Hard limits" section listing what the warehouse cannot answer (playoffs, xG, player game logs, short-handed per-60).
 
-**Tool loop.** One tool, `run_sql(query)`. The route runs a manual tool-use loop (max 8 turns): validate the SQL, execute on BigQuery, return rows as JSON in the tool result. On validation or BigQuery errors the message goes back as an `is_error` tool result and Claude retries, with a hard budget of 3 failed queries; the final failure message instructs it to stop querying and answer with what it has.
+**The hard-limits section exists because of a caught failure.** In review, the agent was asked for even-strength points per 60; the warehouse then had only all-strengths TOI, and the agent silently divided EV points by total ice time, producing a confident, mislabeled statistic. The fix was two-layered: ingest the timeonice report so EV/PP per-60 columns actually exist (computed against the correct strength-state TOI in dbt), and instruct the agent that per-60 rates must come from those columns, never derived from `toi_minutes_per_gp`. Both layers are pinned by eval cases (`ev_points_per_60_honest`, `sh_per60_decline`). The general lesson: a text-to-SQL agent is only as honest as its schema documentation, and every semantic boundary in the data needs to be stated, not assumed.
+
+**Tool loop.** One tool, `run_sql(query)`. The route runs a manual tool-use loop (max 8 turns), accepts prior conversation turns for follow-up questions, and streams over SSE: text deltas as Claude writes, status events while queries execute, and a final event carrying the executed SQL and last result set. On validation or BigQuery errors the message goes back as an `is_error` tool result and Claude retries, with a hard budget of 3 failed queries; the final failure message instructs it to stop querying and answer with what it has.
+
+**Operations.** Every interaction is logged to `nhl_ops.agent_interactions` (question, SQL, row count, latency, status) via a batch load job (the BigQuery sandbox rejects streaming inserts and DML; load jobs are free). The log is the eval-mining and cost-tracking surface. Per-IP sliding-window rate limits in `web/middleware.ts` cap the endpoints that spend Claude tokens or BigQuery jobs; the golden-set eval harness (`evals/`) replays 14 assertion-checked questions against any deployment and exits non-zero on failure.
 
 **Guardrails (defense in depth):**
 
@@ -120,13 +135,16 @@ Grain decisions worth noting:
 
 The comps typeahead is served by one cached endpoint returning all eligible players, filtered client-side, so autocompletion costs zero warehouse queries per keystroke; selections look up by `player_id` (two Sebastian Ahos exist).
 
-## Similarity methodology
+## Similarity methodology (v2)
 
-- Pool: 2025-26 skaters with >= 20 GP (715 players), split into forwards (476) and defensemen (239); goalies excluded. Comps never cross position groups.
-- Features: per-game rates for counting stats (goals, assists, points, shots, PP points, hits, blocks, PIM, plus-minus) plus shooting % and TOI/GP. Forwards additionally use faceoff %; nulls (wingers who never take draws) are mean-imputed, which is neutral after z-scoring.
-- Method: z-score normalize per pool, cosine similarity, keep top 10 per player. Written back to `nhl_marts.mart_player_similarity` (7,150 rows) with WRITE_TRUNCATE.
-- Sanity checks that came back clean: McDavid's #1 comp is Draisaitl (0.979); comp lists are near-symmetric (Crosby #1 for Stützle, Stützle #2 for Crosby); Makar comps to PP-quarterback defensemen (Bouchard, Carlson, Werenski).
+- Pools: 2025-26 skaters with >= 20 GP split into forwards (476) and defensemen (239), plus goalies with >= 15 GP (70). Comps never cross position groups.
+- Skater features: per-60 rates against the correct strength-state ice time (goals, assists, shots, hits, blocks against all-strengths TOI; EV points/goals against EV TOI; PP points against PP TOI) plus shooting %, TOI/GP as a usage signal, PIM and plus-minus per game. Points is excluded: it is goals + assists, and keeping it double-weights scoring. Forwards additionally use faceoff %; nulls (wingers who never take draws) are mean-imputed, which is neutral after z-scoring.
+- Goalie features: save %, GAA, starts (workload), win % per start, shots against per start, shutout rate.
+- Two-season blending: each season's pool is z-scored independently, then a player's vector is 75% current season + 25% prior season when a qualifying prior season exists, damping single-season outliers.
+- Weight profiles: cosine similarity runs on weight-scaled vectors (features scaled by sqrt(weight)) for three skater profiles: overall (uniform), offense (physical stats down-weighted to 0.25), physical (offensive stats down-weighted to 0.25). A scout picks the profile in the UI.
+- Top 25 comps stored per player per profile (55k rows, WRITE_TRUNCATE); the UI shows 10 after optional age-band filtering (age comes from the bios report and is displayed, deliberately not used as a similarity feature).
+- Sanity checks that came back clean: Makar comps to PP-quarterback defensemen (Bouchard #1), Hellebuyck comps to high-workload starters (Shesterkin #1), and comp lists remain near-symmetric.
 
 ## Orchestration
 
-`airflow/dags/nhl_daily_ingest.py` documents the production shape (demonstration artifact, not deployed): parallel ingest branches (league stats REST, PIT gamecenter) fan into the BigQuery load, then `dbt run >> dbt test >> compute_similarity`, with dbt tests acting as a quality gate before the similarity mart rebuilds. Daily at 6am ET, retries=2 on top of the ingest client's own per-request retries, `catchup=False` because each run is a full refresh of current-season data.
+`airflow/dags/nhl_daily_ingest.py` documents the production shape (demonstration artifact, not deployed): three parallel ingest branches (season-level stats REST, league-wide gamecenter pulls, PIT boxscores) fan into the BigQuery load, then `dbt run >> dbt test >> compute_similarity`, with dbt tests acting as a quality gate before the similarity mart rebuilds. Daily at 6am ET, retries=2 on top of the ingest client's own per-request retries, `catchup=False` because each run is a full refresh of current-season data.

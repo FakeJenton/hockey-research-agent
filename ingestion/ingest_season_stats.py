@@ -27,7 +27,12 @@ NDJSON_DIR = CACHE_DIR / "ndjson"
 REPORTS = {
     "raw_skater_summary": "skater/summary",
     "raw_skater_realtime": "skater/realtime",
+    # ev/pp/sh ice time splits: required for strength-state per-60 rates
+    "raw_skater_toi": "skater/timeonice",
+    # birth dates and draft info: age context for similarity comps
+    "raw_skater_bios": "skater/bios",
     "raw_goalie_summary": "goalie/summary",
+    "raw_goalie_bios": "goalie/bios",
     "raw_team_summary": "team/summary",
 }
 

@@ -1,0 +1,12 @@
+# CI-only profile: dbt parse validates the project without connecting to
+# BigQuery, so oauth + a placeholder project is sufficient.
+hockey_research_agent:
+  target: ci
+  outputs:
+    ci:
+      type: bigquery
+      method: oauth
+      project: ci-placeholder
+      dataset: nhl_stg
+      location: US
+      threads: 1

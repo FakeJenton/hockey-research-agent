@@ -1,15 +1,16 @@
--- Game-indexed rolling special-teams form: PP% and PK% over the last
--- 5/10/15 games (inclusive of the current game). Early-season windows use
--- however many games have been played.
+-- Rolling special-teams form for every team: PP% and PK% over the last
+-- 5/10/15 games (inclusive of the current game), windowed per team.
 with games as (
-    select * from {{ ref('fct_pit_games') }}
+    select * from {{ ref('fct_team_games') }}
 )
 
 select
+    game_team_key,
     game_id,
     season_id,
     game_date,
     game_number,
+    team_abbrev,
     opponent,
     result,
     pp_goals_for,
@@ -42,6 +43,6 @@ select
     ), 4) as pk_pct_last_15
 from games
 window
-    last_5 as (order by game_number rows between 4 preceding and current row),
-    last_10 as (order by game_number rows between 9 preceding and current row),
-    last_15 as (order by game_number rows between 14 preceding and current row)
+    last_5 as (partition by team_abbrev order by game_number rows between 4 preceding and current row),
+    last_10 as (partition by team_abbrev order by game_number rows between 9 preceding and current row),
+    last_15 as (partition by team_abbrev order by game_number rows between 14 preceding and current row)

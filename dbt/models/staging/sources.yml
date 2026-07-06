@@ -10,17 +10,23 @@ sources:
         description: Stats REST skater/summary, both seasons. One row per player-season.
       - name: raw_skater_realtime
         description: Stats REST skater/realtime (hits, blocks, take/giveaways), both seasons.
+      - name: raw_skater_toi
+        description: Stats REST skater/timeonice (total/EV/PP/SH ice time in seconds), both seasons.
+      - name: raw_skater_bios
+        description: Stats REST skater/bios (birth date, draft info, height/weight), both seasons.
       - name: raw_goalie_summary
         description: Stats REST goalie/summary, both seasons.
+      - name: raw_goalie_bios
+        description: Stats REST goalie/bios (birth date, draft info), both seasons.
       - name: raw_team_summary
         description: Stats REST team/summary, both seasons.
       - name: raw_standings
         description: Season-end standings snapshot from api-web /standings/now.
       - name: raw_teams
         description: Team reference list (includes 30 defunct franchises).
-      - name: raw_pit_schedule
-        description: PIT 2025-26 regular-season schedule; nested game JSON in `payload` string.
+      - name: raw_schedule
+        description: All 2025-26 regular-season games (deduped across team schedules); nested game JSON in `payload`.
+      - name: raw_rightrail
+        description: Per-game right-rail payloads for every 2025-26 game; only source of team-level game stats.
       - name: raw_pit_boxscores
-        description: Per-game boxscore payloads (player-level stats); retained for future player-game marts.
-      - name: raw_pit_rightrail
-        description: Per-game right-rail payloads; only source of team-level game stats (PP conversion, PIM, hits).
+        description: PIT per-game boxscore payloads (player-level stats); retained for a future player-game mart.

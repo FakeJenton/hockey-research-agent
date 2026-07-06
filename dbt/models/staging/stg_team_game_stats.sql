@@ -1,9 +1,9 @@
--- Team-level game stats per PIT game, pivoted from the right-rail payload's
+-- Team-level game stats for every 2025-26 game, pivoted from the right-rail
 -- teamGameStats category list. powerPlay arrives as a "goals/opportunities"
 -- string (e.g. "0/2") and is split into numeric columns here.
 with source as (
     select *
-    from {{ source('nhl_raw', 'raw_pit_rightrail') }}
+    from {{ source('nhl_raw', 'raw_rightrail') }}
 ),
 
 deduped as (

@@ -47,11 +47,13 @@ models:
       - name: pk_pct
         tests: [not_null]
 
-  - name: fct_pit_games
-    description: One row per PIT 2025-26 regular-season game from PIT's perspective.
+  - name: fct_team_games
+    description: One row per team per 2025-26 regular-season game (2,624 rows), from that team's perspective.
     columns:
-      - name: game_id
+      - name: game_team_key
         tests: [unique, not_null]
+      - name: team_abbrev
+        tests: [not_null]
       - name: result
         tests:
           - not_null
@@ -63,10 +65,22 @@ models:
       - name: times_shorthanded
         tests: [not_null]
 
-  - name: mart_pit_special_teams_rolling
-    description: Rolling 5/10/15-game PP% and PK% indexed by game.
+  - name: fct_pit_games
+    description: Backward-compatible PIT slice of fct_team_games (view).
     columns:
       - name: game_id
         tests: [unique, not_null]
-      - name: game_number
+
+  - name: mart_team_special_teams_rolling
+    description: Rolling 5/10/15-game PP% and PK% per team, indexed by game.
+    columns:
+      - name: game_team_key
         tests: [unique, not_null]
+
+  - name: mart_goalie_season
+    description: Goalie season stat lines with age and draft context, both seasons.
+    columns:
+      - name: player_season_key
+        tests: [unique, not_null]
+      - name: save_pct
+        tests: [not_null]
