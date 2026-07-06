@@ -16,7 +16,7 @@ from pbp_parser import (
     strength_state,
 )
 
-SAMPLE = Path(__file__).parent.parent / "ingestion" / "cache" / "samples" / "pbp_2025020002.json"
+SAMPLE = Path(__file__).parent / "fixtures" / "pbp_2025020002.json"
 
 
 def test_game_seconds():
