@@ -1,0 +1,26 @@
+version: 2
+
+sources:
+  - name: nhl_raw
+    description: Raw NHL API payloads loaded by ingestion/load_to_bigquery.py (WRITE_TRUNCATE on each run).
+    database: "{{ target.project }}"
+    schema: nhl_raw
+    tables:
+      - name: raw_skater_summary
+        description: Stats REST skater/summary, both seasons. One row per player-season.
+      - name: raw_skater_realtime
+        description: Stats REST skater/realtime (hits, blocks, take/giveaways), both seasons.
+      - name: raw_goalie_summary
+        description: Stats REST goalie/summary, both seasons.
+      - name: raw_team_summary
+        description: Stats REST team/summary, both seasons.
+      - name: raw_standings
+        description: Season-end standings snapshot from api-web /standings/now.
+      - name: raw_teams
+        description: Team reference list (includes 30 defunct franchises).
+      - name: raw_pit_schedule
+        description: PIT 2025-26 regular-season schedule; nested game JSON in `payload` string.
+      - name: raw_pit_boxscores
+        description: Per-game boxscore payloads (player-level stats); retained for future player-game marts.
+      - name: raw_pit_rightrail
+        description: Per-game right-rail payloads; only source of team-level game stats (PP conversion, PIM, hits).

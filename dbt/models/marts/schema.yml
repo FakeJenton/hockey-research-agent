@@ -1,0 +1,72 @@
+version: 2
+
+models:
+  - name: dim_players
+    description: One row per player (skaters and goalies) across ingested seasons; latest season wins.
+    columns:
+      - name: player_id
+        tests: [unique, not_null]
+      - name: position_group
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['F', 'D', 'G']
+
+  - name: dim_teams
+    description: The 32 active NHL teams with conference and division.
+    columns:
+      - name: team_id
+        tests: [unique, not_null]
+      - name: tri_code
+        tests: [unique, not_null]
+
+  - name: mart_player_season
+    description: Skater season stat lines (totals + per-game rates), both seasons.
+    columns:
+      - name: player_season_key
+        tests: [unique, not_null]
+      - name: position_group
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['F', 'D']
+      - name: games_played
+        tests: [not_null]
+
+  - name: mart_team_season
+    description: Team season summaries, both seasons.
+    columns:
+      - name: team_season_key
+        tests: [unique, not_null]
+      - name: tri_code
+        tests: [not_null]
+      - name: pp_pct
+        tests: [not_null]
+      - name: pk_pct
+        tests: [not_null]
+
+  - name: fct_pit_games
+    description: One row per PIT 2025-26 regular-season game from PIT's perspective.
+    columns:
+      - name: game_id
+        tests: [unique, not_null]
+      - name: result
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['W', 'L', 'OTL']
+      - name: pp_opportunities
+        tests: [not_null]
+      - name: times_shorthanded
+        tests: [not_null]
+
+  - name: mart_pit_special_teams_rolling
+    description: Rolling 5/10/15-game PP% and PK% indexed by game.
+    columns:
+      - name: game_id
+        tests: [unique, not_null]
+      - name: game_number
+        tests: [unique, not_null]

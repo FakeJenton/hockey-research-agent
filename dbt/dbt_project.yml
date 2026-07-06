@@ -1,0 +1,16 @@
+name: hockey_research_agent
+version: "1.0.0"
+profile: hockey_research_agent
+
+model-paths: ["models"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+models:
+  hockey_research_agent:
+    staging:
+      +materialized: view
+      +schema: nhl_stg
+    marts:
+      +materialized: table
+      +schema: nhl_marts
