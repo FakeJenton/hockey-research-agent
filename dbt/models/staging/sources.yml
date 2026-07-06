@@ -28,5 +28,15 @@ sources:
         description: All 2025-26 regular-season games (deduped across team schedules); nested game JSON in `payload`.
       - name: raw_rightrail
         description: Per-game right-rail payloads for every 2025-26 game; only source of team-level game stats.
-      - name: raw_pit_boxscores
-        description: PIT per-game boxscore payloads (player-level stats); retained for a future player-game mart.
+      - name: raw_shots
+        description: One row per shot attempt (SOG/miss/goal/block) for every 2025-26 game, parsed from play-by-play at ingest (geometry, strength state, rebound/rush flags).
+      - name: raw_player_games
+        description: One row per player per game for every 2025-26 game, parsed from boxscore playerByGameStats at ingest.
+
+  - name: nhl_marts_ml
+    description: Marts written by Python jobs (similarity, xG scoring) rather than dbt.
+    database: "{{ target.project }}"
+    schema: nhl_marts
+    tables:
+      - name: fct_shots
+        description: raw_shots scored with the logistic-regression xG model (xg null for blocked and empty-net attempts).

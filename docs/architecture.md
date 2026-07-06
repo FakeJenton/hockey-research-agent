@@ -15,6 +15,7 @@ All endpoints below were verified empirically with curl. Raw samples live in `in
 | `/gamecenter/{gameId}/boxscore` | 200 | Game header (`id`, `season`, `gameDate`, `gameState`, `gameOutcome`) + `homeTeam`/`awayTeam` (**only `score` and `sog` at team level**) + `playerByGameStats` (per-player: goals, assists, points, plusMinus, pim, hits, blockedShots, powerPlayGoals, sog, faceoffWinningPctg, toi). |
 | `/gamecenter/{gameId}/right-rail` | 200 | **Required for team-level game stats.** The boxscore does not carry them. `teamGameStats` is a category list with `awayValue`/`homeValue`: `sog`, `faceoffWinningPctg`, `powerPlay` (as `"G/OPP"` string, e.g. `"0/2"`), `powerPlayPctg`, `pim`, `hits`, `blockedShots`, `giveaways`, `takeaways`. Also has `linescore` and `shotsByPeriod`. |
 | `/player/{playerId}/landing` | 200 | Bio (`firstName.default`, `lastName.default`, `position`, `currentTeamAbbrev`, height/weight, `birthDate`, `shootsCatches`), `careerTotals`, `seasonTotals`, `draftDetails`. |
+| `/gamecenter/{gameId}/play-by-play` | 200 | `plays[]` event stream (~300/game). Shot events (`goal`, `shot-on-goal`, `missed-shot`, `blocked-shot`) carry `details` with `xCoord`/`yCoord` (nets at x = +/-89), `shotType`, `zoneCode`, `shootingPlayerId`, `goalieInNetId`, `eventOwnerTeamId`, plus `situationCode` (goalie/skater counts) and `homeTeamDefendingSide` (resolves attack direction). Blocked shots are owned by the BLOCKING team. Feeds the xG model. |
 
 ### Stats REST base: `https://api.nhle.com/stats/rest/en`
 
@@ -134,6 +135,13 @@ Grain decisions worth noting:
 | Injection | user text never interpolated into SQL; UI lookups use BigQuery query parameters |
 
 The comps typeahead is served by one cached endpoint returning all eligible players, filtered client-side, so autocompletion costs zero warehouse queries per keystroke; selections look up by `player_id` (two Sebastian Ahos exist).
+
+## Expected goals model
+
+- **Data**: ~160K shot attempts parsed from play-by-play at ingest time (rebound/rush flags need event ordering, which is awkward to reconstruct in SQL, so flattening happens in Python where the sequence exists). Attack direction resolves exactly from `homeTeamDefendingSide` + shooter side, so distance/angle are correct in all zones, not just offensive-zone shots.
+- **Model**: logistic regression, trained on unblocked attempts with a goalie in net. Features: distance, angle, one-hot shot type, is_rebound, is_rush, one-hot strength state. Blocked shots (coordinates record the block, not the shot origin) and empty-net attempts are excluded and carry null xg.
+- **Validation**: holdout AUC and calibration print at training time; a tagged dbt test (`assert_xg_calibrated`) fails the pipeline if league predicted goals drift more than 5% from actual. The two-stage dbt build (`--exclude tag:xg`, then `--select tag:xg` after scoring) keeps the aggregate marts from ever building on a stale shots table.
+- **Honesty**: the schema doc tells the agent to describe this as "expected goals from shot location and type"; screens, pre-shot movement, and shooter skill are exactly what proprietary models add on top.
 
 ## Similarity methodology (v2)
 

@@ -50,7 +50,7 @@
   {
     "id": "back_to_backs",
     "question": "How many wins did Dallas have in the second game of back-to-backs this season?",
-    "sql_contains_any": ["fct_team_games"]
+    "sql_contains_any": ["is_back_to_back", "rest_days", "fct_team_games"]
   },
   {
     "id": "playoffs_decline",
@@ -59,9 +59,24 @@
     "max_sql": 1
   },
   {
-    "id": "xg_decline",
-    "question": "What was Toronto's expected goals percentage this season?",
-    "answer_contains_any": ["expected goals", "xG", "shot location", "not available", "don't have", "does not", "doesn't"]
+    "id": "xg_team_share",
+    "question": "What was Toronto's expected goals share this season?",
+    "sql_contains_any": ["mart_team_xg_season", "xg_share", "fct_shots"]
+  },
+  {
+    "id": "xg_finishing",
+    "question": "Which player beat his expected goals by the most this season?",
+    "sql_contains_any": ["goals_above_expected", "expected_goals", "xg"]
+  },
+  {
+    "id": "player_game_log",
+    "question": "How many points did Sidney Crosby record over his final 10 games of the season?",
+    "sql_contains_any": ["fct_player_games"]
+  },
+  {
+    "id": "tracking_decline",
+    "question": "What were Toronto's zone entry numbers this season?",
+    "answer_contains_any": ["tracking", "zone entr", "not", "doesn't", "does not", "unavailable"]
   },
   {
     "id": "sh_per60_decline",

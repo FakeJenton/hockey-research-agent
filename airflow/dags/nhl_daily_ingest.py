@@ -9,11 +9,12 @@ where the repo, its virtualenv, and dbt profile live on the worker.
 Design notes:
 - BashOperators call the same CLI entry points a human runs, so local runs
   and orchestrated runs execute identical code paths.
-- The three ingest branches are independent (season-level stats REST pulls,
-  league-wide gamecenter pulls, PIT boxscores) and run in parallel, fanning
-  into the load.
-- dbt tests gate the similarity job: if data quality fails, downstream
-  marts are not rebuilt on top of bad inputs.
+- The four ingest branches are independent (season-level stats REST pulls,
+  league schedules/right-rails, boxscores, play-by-play) and run in
+  parallel, fanning into the load.
+- dbt tests gate the ML jobs: if data quality fails, neither similarity
+  nor the xG model rebuilds on top of bad inputs. The xG aggregate marts
+  build after scoring, behind their own calibration test.
 - retries=2 with a 5 minute delay absorbs transient NHL API and BigQuery
   hiccups; the ingest client also retries per-request with backoff.
 - catchup=False: each run fully refreshes current-season data, so there is
@@ -58,10 +59,16 @@ with DAG(
         doc_md="Every team's schedule plus per-game right-rail payloads (cached; only new games hit the API).",
     )
 
-    ingest_pit_boxscores = BashOperator(
-        task_id="ingest_pit_boxscores",
-        bash_command=f"cd {REPO} && {PYTHON} ingestion/ingest_pens_games.py",
-        doc_md="PIT per-game boxscores (player-level stats, retained for a future player-game mart).",
+    ingest_league_boxscores = BashOperator(
+        task_id="ingest_league_boxscores",
+        bash_command=f"cd {REPO} && {PYTHON} ingestion/ingest_league_boxscores.py",
+        doc_md="Per-game boxscores league-wide, flattened to player-game rows at ingest.",
+    )
+
+    ingest_play_by_play = BashOperator(
+        task_id="ingest_play_by_play",
+        bash_command=f"cd {REPO} && {PYTHON} ingestion/ingest_play_by_play.py",
+        doc_md="Play-by-play league-wide, flattened to shot-attempt rows (geometry, strength, rebound/rush) at ingest.",
     )
 
     load_raw = BashOperator(
@@ -72,13 +79,14 @@ with DAG(
 
     dbt_run = BashOperator(
         task_id="dbt_run",
-        bash_command=f"{DBT} run {DBT_ARGS}",
+        bash_command=f"{DBT} run {DBT_ARGS} --exclude tag:xg",
+        doc_md="Base models; xg-tagged marts wait for the scoring job.",
     )
 
     dbt_test = BashOperator(
         task_id="dbt_test",
-        bash_command=f"{DBT} test {DBT_ARGS}",
-        doc_md="Quality gate: uniqueness, not-null, accepted values, 82-game sanity check.",
+        bash_command=f"{DBT} test {DBT_ARGS} --exclude tag:xg",
+        doc_md="Quality gate: uniqueness, not-null, accepted values, 82-game sanity checks.",
     )
 
     compute_similarity = BashOperator(
@@ -87,7 +95,21 @@ with DAG(
         doc_md="Rebuild mart_player_similarity from the freshly tested marts.",
     )
 
+    train_xg = BashOperator(
+        task_id="train_xg",
+        bash_command=f"cd {REPO} && {PYTHON} xg/train_xg.py",
+        doc_md="Retrain the shot-level xG model and publish nhl_marts.fct_shots.",
+    )
+
+    dbt_build_xg = BashOperator(
+        task_id="dbt_build_xg",
+        bash_command=f"{DBT} build {DBT_ARGS} --select tag:xg",
+        doc_md="xG aggregate marts plus the calibration gate (predicted within 5% of actual goals).",
+    )
+
     ingest_standings >> load_raw
     ingest_league_games >> load_raw
-    ingest_pit_boxscores >> load_raw
-    load_raw >> dbt_run >> dbt_test >> compute_similarity
+    ingest_league_boxscores >> load_raw
+    ingest_play_by_play >> load_raw
+    load_raw >> dbt_run >> dbt_test >> [compute_similarity, train_xg]
+    train_xg >> dbt_build_xg

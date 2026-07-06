@@ -84,3 +84,36 @@ models:
         tests: [unique, not_null]
       - name: save_pct
         tests: [not_null]
+
+  - name: fct_player_games
+    description: One row per player per 2025-26 game (skaters and goalies) with per-player game numbering.
+    columns:
+      - name: player_game_key
+        tests: [unique, not_null]
+      - name: player_id
+        tests: [not_null]
+      - name: position_group
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['F', 'D', 'G']
+
+  - name: mart_player_xg_season
+    description: Shooter expected goals per player-season from the shot-level xG model.
+    config:
+      tags: [xg]
+    columns:
+      - name: player_season_key
+        tests: [unique, not_null]
+      - name: expected_goals
+        tests: [not_null]
+
+  - name: mart_team_xg_season
+    description: Team xG for/against and xG share per season.
+    config:
+      tags: [xg]
+    columns:
+      - name: team_season_key
+        tests: [unique, not_null]
+      - name: xg_share
+        tests: [not_null]

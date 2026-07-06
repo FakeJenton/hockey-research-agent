@@ -74,6 +74,20 @@ select
         partition by team_abbrev
         order by game_date, game_id
     ) as game_number,
+    -- schedule context: days since this team's previous game (null for the opener)
+    date_diff(
+        game_date,
+        lag(game_date) over (partition by team_abbrev order by game_date, game_id),
+        day
+    ) as rest_days,
+    coalesce(
+        date_diff(
+            game_date,
+            lag(game_date) over (partition by team_abbrev order by game_date, game_id),
+            day
+        ) = 1,
+        false
+    ) as is_back_to_back,
     team_abbrev,
     opponent,
     is_home,

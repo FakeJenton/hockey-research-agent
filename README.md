@@ -6,7 +6,7 @@ A miniature hockey R&D data platform: a real pipeline from the public NHL API in
 
 Two core features:
 
-1. **Research Agent**: ask natural-language hockey questions in a multi-turn conversation. Claude translates each question to SQL, executes it against the BigQuery warehouse via tool use, self-corrects on errors, and streams the answer with the supporting data table and the exact SQL it ran (transparency toggle in the UI). A golden-set evaluation harness replays 14 questions, including adversarial ones, against every prompt or schema change.
+1. **Research Agent**: ask natural-language hockey questions in a multi-turn conversation. Claude translates each question to SQL, executes it against the BigQuery warehouse via tool use, self-corrects on errors, and streams the answer with the supporting data table and the exact SQL it ran (transparency toggle in the UI). A golden-set evaluation harness replays 17 assertion-checked questions, including adversarial ones, against every prompt or schema change.
 2. **Player Similarity Engine**: search any NHL skater or goalie (typeahead on first or last name) and get their closest statistical comps: TOI-honest per-60 profiles blended with the prior season, three scout-selectable weight profiles (overall / offense / physical), league percentile ranks on every stat, an age filter, and an AI-generated scouting-style blurb.
 
 <!-- screenshot: research agent answering the PK question -->
@@ -21,14 +21,14 @@ flowchart LR
         CACHE --> NDJSON["NDJSON files"]
     end
 
-    NDJSON --> RAW[("BigQuery<br/>nhl_raw<br/>12 tables")]
+    NDJSON --> RAW[("BigQuery<br/>nhl_raw<br/>13 tables")]
 
-    subgraph dbt["dbt (34 tests)"]
-        RAW --> STG[("nhl_stg<br/>12 staging views")]
-        STG --> MARTS[("nhl_marts<br/>8 marts")]
+    subgraph dbt["dbt (43 tests)"]
+        RAW --> STG[("nhl_stg<br/>13 staging views")]
+        STG --> MARTS[("nhl_marts<br/>13 marts")]
     end
 
-    MARTS --> SIM["similarity job<br/>(pandas + scikit-learn)"]
+    MARTS --> SIM["ML jobs: similarity + xG<br/>(pandas + scikit-learn)"]
     SIM --> MARTS
 
     subgraph App["Next.js on Vercel"]
@@ -44,7 +44,7 @@ flowchart LR
     AIRFLOW -.-> SIM
 ```
 
-Daily orchestration is documented as a demonstration Airflow DAG ([airflow/dags/nhl_daily_ingest.py](airflow/dags/nhl_daily_ingest.py)): parallel ingest branches fan into the BigQuery load, dbt tests gate the similarity rebuild.
+Daily orchestration is documented as a demonstration Airflow DAG ([airflow/dags/nhl_daily_ingest.py](airflow/dags/nhl_daily_ingest.py)): parallel ingest branches fan into the BigQuery load; dbt tests gate the ML jobs, and the xG marts build behind their own calibration test.
 
 ## Stack rationale
 
@@ -63,11 +63,16 @@ Daily orchestration is documented as a demonstration Airflow DAG ([airflow/dags/
 Two complete NHL regular seasons: **2025-26** (primary) and **2024-25** (comparison).
 
 - League-wide season grain: skater summaries plus the realtime (hits/blocks), timeonice (EV/PP/SH ice time splits), and bios (birth dates, draft) reports; goalie summaries and bios; team summaries; standings.
-- League-wide game grain: all 1,312 games of 2025-26 as `fct_team_games` (2,624 team-perspective rows: score, opponent, special teams for/against, shots, hits, blocks), plus rolling 5/10/15-game special-teams form for every team.
+- League-wide game grain: all 1,312 games of 2025-26 as `fct_team_games` (2,624 team-perspective rows with rest days and back-to-back flags), rolling 5/10/15-game special-teams form for every team, and `fct_player_games` game logs for every skater and goalie.
+- Shot grain: ~160K shot attempts parsed from play-by-play with geometry (distance/angle to the attacked net), strength state, and rebound/rush flags, scored by the xG model below.
+
+### Expected goals model
+
+A logistic regression over unblocked, goalie-in-net shot attempts: distance, angle, shot type, rebound (within 3s of a prior attempt), rush (within 4s of a neutral/defensive-zone event), and strength state. Holdout AUC and league calibration print at training time, and a dbt test fails the pipeline if league-wide predicted goals drift more than 5% from actual. Deliberately public-data honest: no screens, pre-shot movement, or shooter identity, and the agent is instructed to describe it as "expected goals from shot location and type." Outputs: shot-level `fct_shots.xg`, `mart_player_xg_season` (finishing above expected), `mart_team_xg_season` (xG share, team finishing and goaltending vs expected).
 
 ### Data quality, verified two ways
 
-- **34 dbt tests**: unique/not-null keys, accepted values on position groups and game results, and sanity tests that every one of the 32 teams has exactly 82 game rows.
+- **43 dbt tests**: unique/not-null keys, accepted values on position groups and game results, and sanity tests that every one of the 32 teams has exactly 82 game rows.
 - **Cross-source validation**: PIT's season PP% and PK% computed from the 82 individual game rows (24.14% / 81.43%) match the NHL's own season-summary endpoint (24.1379% / 81.4346%) to four decimals. Two independent API surfaces, one consistent warehouse.
 - **A test that caught a real bug**: the NHL assigned Utah a new `teamId` when the franchise rebranded from Utah Hockey Club (id 59) to Utah Mammoth (id 68), same `UTA` tricode. The `unique tri_code` test on `dim_teams` failed with 33 rows for 32 franchises; the fix re-grained the dimension to one row per active franchise and resolves historical seasons through the full team reference.
 
@@ -81,13 +86,13 @@ Only Claude writes SQL, and every statement passes validation before execution (
 - `LIMIT 200` injected when absent; 15s job timeout; bytes-billed cap
 - User text is never interpolated into SQL anywhere in the app; UI lookups (player search) use BigQuery query parameters
 
-The system prompt is built from a schema document ([web/lib/schema.ts](web/lib/schema.ts)): every mart table with columns, types, and one-line descriptions, example question-to-SQL pairs, and an explicit "Hard limits" section (no playoffs, no xG, which ice time each per-60 rate uses) so the agent states what is missing instead of bridging gaps with plausible-but-wrong arithmetic. On a BigQuery error the message is fed back to Claude, which retries with corrected SQL (max 3 attempts). Answers stream over SSE with live status events; the final event carries every executed query and the last result set so the UI can show its work.
+The system prompt is built from a schema document ([web/lib/schema.ts](web/lib/schema.ts)): every mart table with columns, types, and one-line descriptions, example question-to-SQL pairs, and an explicit "Hard limits" section (no playoffs, no tracking data, which ice time each per-60 rate uses, what the xG model does and does not know) so the agent states what is missing instead of bridging gaps with plausible-but-wrong arithmetic. On a BigQuery error the message is fed back to Claude, which retries with corrected SQL (max 3 attempts). Answers stream over SSE with live status events; the final event carries every executed query and the last result set so the UI can show its work.
 
 Operational hardening: per-IP rate limits on the paid endpoints ([web/middleware.ts](web/middleware.ts)), and every agent interaction (question, SQL, row count, latency, status) is logged to a BigQuery ops table for cost tracking and eval mining. The SQL validator has its own test suite (21 vitest cases) and CI runs Python tests, dbt parse, typecheck, and the guardrail tests on every push.
 
 ### Evaluation harness
 
-[evals/golden_set.json](evals/golden_set.json) holds 14 verified question/assertion pairs: correct-answer checks (scoring leaders, year-over-year PP improvement), grain checks (game-level questions for arbitrary teams), and adversarial checks (the agent must decline playoff/xG/SH-per-60 questions rather than approximate, and must use the real `ev_points_per_60` column rather than deriving rates from all-strengths ice time). `python evals/run_evals.py <base-url>` replays them and exits non-zero on any failure, so agent accuracy is a tested artifact like the dbt models.
+[evals/golden_set.json](evals/golden_set.json) holds 17 verified question/assertion pairs: correct-answer checks (scoring leaders, year-over-year PP improvement), grain checks (game-level questions for arbitrary teams), and adversarial checks (the agent must decline playoff/xG/SH-per-60 questions rather than approximate, and must use the real `ev_points_per_60` column rather than deriving rates from all-strengths ice time). `python evals/run_evals.py <base-url>` replays them and exits non-zero on any failure, so agent accuracy is a tested artifact like the dbt models.
 
 ## Example questions
 
@@ -117,12 +122,15 @@ cp dbt/profiles.yml.example dbt/profiles.yml   # point keyfile/project at yours
 # 4. Pipeline (each step is idempotent; API pulls are cached)
 python ingestion/ingest_reference.py
 python ingestion/ingest_season_stats.py
-python ingestion/ingest_league_games.py   # ~20 min first run (1,312 games), instant after
-python ingestion/ingest_pens_games.py
+python ingestion/ingest_league_games.py      # ~20 min first run (1,312 games), instant after
+python ingestion/ingest_league_boxscores.py  # ~20 min first run, player game logs
+python ingestion/ingest_play_by_play.py      # ~20 min first run, shot events
 python ingestion/load_to_bigquery.py
-dbt run --project-dir dbt --profiles-dir dbt
-dbt test --project-dir dbt --profiles-dir dbt
+dbt run --project-dir dbt --profiles-dir dbt --exclude tag:xg
+dbt test --project-dir dbt --profiles-dir dbt --exclude tag:xg
 python similarity/compute_similarity.py
+python xg/train_xg.py                        # trains + publishes shot-level xG
+dbt build --project-dir dbt --profiles-dir dbt --select tag:xg
 
 # 5. Web app
 cd web && npm install
@@ -136,8 +144,7 @@ Tests: `pytest tests/` covers the API client (caching, retries) and the similari
 
 ## What I'd build next with internal data
 
-- **Shot-quality / xG layer**: ingest play-by-play (shot locations exist on the same gamecenter API), fit a public-features xG model, and add expected-goals columns to the game and player marts; the single biggest analytical upgrade over box-score data.
-- **Tracking data ingestion**: land per-event puck/player tracking into partitioned raw tables, with staging models that sessionize shifts and derive zone entries; the same raw → staging → marts pattern scales to that volume with partition pruning.
+- **Tracking data ingestion**: land per-event puck/player tracking into partitioned raw tables, with staging models that sessionize shifts and derive zone entries; the same raw → staging → marts pattern scales to that volume with partition pruning. The public xG model above is also where tracking data would plug in first (pre-shot movement, screens, shooter/goalie identity).
 - **Search over scouting notes**: Elasticsearch (or BigQuery vector search) over unstructured scouting reports, joined back to `dim_players` so the agent can answer "what did our scouts say about players statistically similar to X?"
 - **RAG on unstructured reports**: retrieval over medical, development, and pro-scouting documents as a second agent tool alongside `run_sql`, letting one question combine structured stats with written evaluation.
 

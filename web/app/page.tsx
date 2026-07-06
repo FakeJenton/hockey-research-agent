@@ -15,10 +15,10 @@ type Exchange = {
 };
 
 const EXAMPLE_QUESTIONS = [
+  "Which teams most outperformed their expected goals this season?",
+  "How did Sidney Crosby produce over his last 10 games?",
   "How has Toronto's penalty kill trended over their last 15 games?",
-  "Who led the league in even-strength points per 60 minutes?",
-  "Which teams improved their power play the most from 2024-25 to 2025-26?",
-  "How did teams perform in the second half of back-to-backs this season?",
+  "How did teams perform on the second night of back-to-backs?",
 ];
 
 export default function ResearchPage() {
