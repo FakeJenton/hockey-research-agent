@@ -42,8 +42,17 @@ export default function LeadersPage() {
       )}
 
       {!sections && !error && (
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-6 text-sm text-zinc-400">
-          Loading leaderboards…
+        <div className="grid gap-5 md:grid-cols-2">
+          {Array.from({ length: 6 }).map((_, index) => (
+            <div key={index} className="animate-pulse rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+              <div className="mb-4 h-4 w-28 rounded bg-zinc-800" />
+              <div className="space-y-2.5">
+                {Array.from({ length: 8 }).map((_, rowIndex) => (
+                  <div key={rowIndex} className="h-3.5 rounded bg-zinc-800/70" />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -55,7 +64,7 @@ export default function LeadersPage() {
                 <h3 className="text-sm font-semibold">{section.title}</h3>
                 <span className="text-xs text-zinc-500">{section.note}</span>
               </div>
-              <BarList rows={section.rows} format={section.format} />
+              <BarList rows={section.rows} format={section.format} ranked />
             </div>
           ))}
         </div>

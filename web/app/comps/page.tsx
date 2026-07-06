@@ -300,6 +300,42 @@ export default function CompsPage() {
 
       {player && result && result.comps.length > 0 && (
         <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-zinc-800 bg-zinc-900 px-5 py-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xl font-semibold tracking-tight">{player.full_name}</h3>
+                <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-300">
+                  {player.position_code}
+                </span>
+                <span className="text-sm text-zinc-500">{player.team_abbrevs}</span>
+                {player.age != null && <span className="text-sm text-zinc-500">· {player.age}y</span>}
+              </div>
+            </div>
+            <div className="flex gap-5 text-center">
+              {(isGoalie
+                ? [
+                    ["Starts", player.games_started],
+                    ["Save %", `${(Number(player.save_pct) * 100).toFixed(1)}%`],
+                    ["GAA", Number(player.goals_against_average).toFixed(2)],
+                    ["SO", player.shutouts],
+                  ]
+                : [
+                    ["GP", player.games_played],
+                    ["G", player.goals],
+                    ["A", player.assists],
+                    ["P", player.points],
+                  ]
+              ).map(([label, value]) => (
+                <div key={String(label)}>
+                  <div className="text-lg font-semibold text-amber-400">{String(value)}</div>
+                  <div className="text-[10px] uppercase tracking-wide text-zinc-500">
+                    {String(label)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="flex flex-wrap items-center gap-3">
             {!isGoalie && (
               <div className="flex gap-1 rounded-lg bg-zinc-900 p-1 text-xs">
@@ -347,21 +383,33 @@ export default function CompsPage() {
                     <li key={comp.player_id}>
                       <button
                         onClick={() => setSelected(comp)}
-                        className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-sm hover:bg-zinc-900 ${
-                          activeComp?.player_id === comp.player_id ? "bg-zinc-900" : ""
+                        className={`w-full px-4 py-2.5 text-left text-sm transition-colors hover:bg-zinc-900 ${
+                          activeComp?.player_id === comp.player_id
+                            ? "border-l-2 border-amber-400 bg-zinc-900"
+                            : "border-l-2 border-transparent"
                         }`}
                       >
-                        <span>
-                          <span className="mr-2 text-zinc-500">{comp.rank}.</span>
-                          {comp.full_name}
-                          <span className="ml-2 text-xs text-zinc-500">
-                            {comp.position_code} · {comp.team_abbrevs}
-                            {comp.age != null ? ` · ${comp.age}y` : ""}
+                        <div className="flex items-center justify-between">
+                          <span>
+                            <span className="mr-2 text-zinc-500">{comp.rank}.</span>
+                            {comp.full_name}
+                            <span className="ml-2 text-xs text-zinc-500">
+                              {comp.position_code} · {comp.team_abbrevs}
+                              {comp.age != null ? ` · ${comp.age}y` : ""}
+                            </span>
                           </span>
-                        </span>
-                        <span className="text-xs text-amber-300">
-                          {(comp.similarity_score ?? 0).toFixed(3)}
-                        </span>
+                          <span className="text-xs text-amber-300">
+                            {(comp.similarity_score ?? 0).toFixed(3)}
+                          </span>
+                        </div>
+                        <div className="mt-1.5 h-1 rounded-full bg-zinc-800">
+                          <div
+                            className="h-1 rounded-full bg-amber-400/70"
+                            style={{
+                              width: `${Math.min(Math.max(((comp.similarity_score ?? 0.6) - 0.6) / 0.4, 0.02), 1) * 100}%`,
+                            }}
+                          />
+                        </div>
                       </button>
                     </li>
                   ))}

@@ -15,15 +15,22 @@ export function formatValue(value: number, format: "int" | "dec1" | "pct"): stri
 export function BarList({
   rows,
   format = "int",
+  ranked = false,
 }: {
   rows: LeaderRow[];
   format?: "int" | "dec1" | "pct";
+  ranked?: boolean;
 }) {
   const max = Math.max(...rows.map((row) => Math.abs(row.value)), 1e-9);
   return (
     <div className="space-y-1.5">
       {rows.map((row, index) => (
         <div key={`${row.label}-${index}`} className="flex items-center gap-2 text-xs">
+          {ranked && (
+            <div className={`w-4 text-right ${index === 0 ? "font-bold text-amber-400" : "text-zinc-600"}`}>
+              {index + 1}
+            </div>
+          )}
           <div className="w-40 truncate text-zinc-300" title={row.label}>
             {row.label}
             {row.sublabel && <span className="ml-1.5 text-zinc-500">{row.sublabel}</span>}

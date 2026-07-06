@@ -13,6 +13,8 @@ type Exchange = {
   status: string | null;
   done: boolean;
   error: string | null;
+  startedAt: number;
+  durationMs: number | null;
 };
 
 const EXAMPLE_QUESTIONS = [
@@ -63,7 +65,17 @@ export default function ResearchPage() {
 
     updateThread((previous) => [
       ...previous,
-      { question: trimmed, answer: "", sql: [], rows: [], status: "Thinking…", done: false, error: null },
+      {
+        question: trimmed,
+        answer: "",
+        sql: [],
+        rows: [],
+        status: "Thinking…",
+        done: false,
+        error: null,
+        startedAt: Date.now(),
+        durationMs: null,
+      },
     ]);
 
     const patchLast = (patch: Partial<Exchange> | ((e: Exchange) => Partial<Exchange>)) =>
@@ -103,7 +115,13 @@ export default function ResearchPage() {
           } else if (event.type === "status") {
             patchLast({ status: event.message });
           } else if (event.type === "done") {
-            patchLast({ sql: event.sql ?? [], rows: event.rows ?? [], status: null, done: true });
+            patchLast((last) => ({
+              sql: event.sql ?? [],
+              rows: event.rows ?? [],
+              status: null,
+              done: true,
+              durationMs: Date.now() - last.startedAt,
+            }));
           } else if (event.type === "error") {
             patchLast({ error: event.error, status: null, done: true });
           }
@@ -123,37 +141,63 @@ export default function ResearchPage() {
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-semibold tracking-tight">Ask a hockey question</h2>
-          <p className="mt-1 text-sm text-zinc-400">
-            Claude translates your question to SQL, runs it against the BigQuery warehouse, and
-            answers with the data to back it up. Follow-ups keep the conversation context.
-          </p>
-        </div>
-        {thread.length > 0 && (
+      {thread.length === 0 ? (
+        <section className="space-y-8 pt-6">
+          <div className="max-w-2xl">
+            <h2 className="text-3xl font-semibold tracking-tight">
+              Ask anything about the <span className="text-amber-400">2025-26 season</span>
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+              Every answer is real SQL against a tested BigQuery warehouse: two seasons of stats,
+              every game, 153K shots with expected goals. Follow-ups keep the conversation
+              context, and you can always see the queries behind an answer.
+            </p>
+          </div>
+
+          <div className="grid gap-3 text-xs sm:grid-cols-3">
+            {[
+              ["1", "You ask in plain English", "“Who ran hottest over their final 10 games?”"],
+              ["2", "Claude writes and runs SQL", "read-only, guardrailed, self-correcting"],
+              ["3", "Answer + chart + the SQL", "so every number can be checked"],
+            ].map(([step, title, detail]) => (
+              <div key={step} className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
+                <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-[10px] font-bold text-zinc-950">
+                  {step}
+                </span>
+                <span className="font-medium text-zinc-200">{title}</span>
+                <p className="mt-1.5 text-zinc-500">{detail}</p>
+              </div>
+            ))}
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+              Try one
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {EXAMPLE_QUESTIONS.map((example) => (
+                <button
+                  key={example}
+                  onClick={() => ask(example)}
+                  disabled={loading}
+                  className="rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-left text-xs text-zinc-300 transition-colors hover:border-amber-400/60 hover:text-zinc-100 disabled:opacity-40"
+                >
+                  {example}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : (
+        <section className="flex items-center justify-between">
+          <h2 className="text-sm font-medium text-zinc-400">Research conversation</h2>
           <button
             onClick={() => updateThread(() => [])}
-            className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 hover:border-zinc-500"
+            className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:border-zinc-500 hover:text-zinc-200"
           >
             New conversation
           </button>
-        )}
-      </section>
-
-      {thread.length === 0 && (
-        <div className="flex flex-wrap gap-2">
-          {EXAMPLE_QUESTIONS.map((example) => (
-            <button
-              key={example}
-              onClick={() => ask(example)}
-              disabled={loading}
-              className="rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-left text-xs text-zinc-300 hover:border-amber-400/60 disabled:opacity-40"
-            >
-              {example}
-            </button>
-          ))}
-        </div>
+        </section>
       )}
 
       <div className="space-y-6">
@@ -182,19 +226,30 @@ export default function ResearchPage() {
               </div>
             )}
 
+            {exchange.done && !exchange.error && (
+              <div className="flex items-center gap-3 text-[11px] text-zinc-500">
+                <span>
+                  {exchange.sql.length} {exchange.sql.length === 1 ? "query" : "queries"}
+                </span>
+                <span>·</span>
+                <span>{exchange.rows.length} rows</span>
+                {exchange.durationMs !== null && (
+                  <>
+                    <span>·</span>
+                    <span>{(exchange.durationMs / 1000).toFixed(1)}s</span>
+                  </>
+                )}
+              </div>
+            )}
+
             {exchange.done && exchange.sql.length > 0 && (
               <details className="rounded-lg border border-zinc-800 bg-zinc-900">
                 <summary className="cursor-pointer px-4 py-3 text-xs font-medium text-zinc-400 hover:text-zinc-200">
-                  Show SQL ({exchange.sql.length} {exchange.sql.length === 1 ? "query" : "queries"})
+                  Show SQL
                 </summary>
                 <div className="space-y-3 border-t border-zinc-800 p-4">
                   {exchange.sql.map((sql, sqlIndex) => (
-                    <pre
-                      key={sqlIndex}
-                      className="overflow-x-auto rounded bg-zinc-950 p-3 text-xs text-emerald-300"
-                    >
-                      {sql}
-                    </pre>
+                    <SqlBlock key={sqlIndex} sql={sql} index={sqlIndex} total={exchange.sql.length} />
                   ))}
                 </div>
               </details>
@@ -232,6 +287,31 @@ export default function ResearchPage() {
           {loading ? "Researching…" : "Ask"}
         </button>
       </form>
+    </div>
+  );
+}
+
+function SqlBlock({ sql, index, total }: { sql: string; index: number; total: number }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="overflow-hidden rounded border border-zinc-800 bg-zinc-950">
+      <div className="flex items-center justify-between border-b border-zinc-800/70 px-3 py-1.5">
+        <span className="font-mono text-[10px] uppercase tracking-wide text-zinc-500">
+          query {total > 1 ? `${index + 1} of ${total}` : ""}
+        </span>
+        <button
+          onClick={() => {
+            navigator.clipboard.writeText(sql).then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            });
+          }}
+          className="rounded px-2 py-0.5 text-[10px] text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+        >
+          {copied ? "Copied ✓" : "Copy"}
+        </button>
+      </div>
+      <pre className="overflow-x-auto p-3 text-xs text-emerald-300">{sql}</pre>
     </div>
   );
 }
@@ -309,13 +389,19 @@ function ResultChart({ rows }: { rows: Record<string, unknown>[] }) {
 
 function DataTable({ rows }: { rows: Record<string, unknown>[] }) {
   const columns = Object.keys(rows[0]);
+  const numeric = new Set(
+    columns.filter((column) => rows.some((row) => typeof row[column] === "number")),
+  );
   return (
     <div className="overflow-x-auto rounded-lg border border-zinc-800">
       <table className="w-full text-xs">
         <thead className="bg-zinc-900 text-left text-zinc-400">
           <tr>
             {columns.map((column) => (
-              <th key={column} className="px-3 py-2 font-medium">
+              <th
+                key={column}
+                className={`px-3 py-2 font-medium ${numeric.has(column) ? "text-right" : ""}`}
+              >
                 {column}
               </th>
             ))}
@@ -323,9 +409,12 @@ function DataTable({ rows }: { rows: Record<string, unknown>[] }) {
         </thead>
         <tbody>
           {rows.slice(0, 50).map((row, index) => (
-            <tr key={index} className="border-t border-zinc-800/70">
+            <tr key={index} className="border-t border-zinc-800/70 odd:bg-zinc-900/40">
               {columns.map((column) => (
-                <td key={column} className="px-3 py-2 text-zinc-300">
+                <td
+                  key={column}
+                  className={`px-3 py-2 text-zinc-300 ${numeric.has(column) ? "text-right" : ""}`}
+                >
                   {formatCell(row[column])}
                 </td>
               ))}
