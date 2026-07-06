@@ -33,6 +33,9 @@ export default function RootLayout({
               <Link href="/comps" className="rounded-md px-3 py-1.5 hover:bg-zinc-800">
                 Player Comps
               </Link>
+              <Link href="/leaders" className="rounded-md px-3 py-1.5 hover:bg-zinc-800">
+                Leaders
+              </Link>
             </nav>
           </header>
           <main className="flex-1 py-8">{children}</main>

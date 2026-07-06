@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { BarList, TrendChart } from "@/lib/charts";
 
 type Exchange = {
   question: string;
@@ -199,6 +200,7 @@ export default function ResearchPage() {
               </details>
             )}
 
+            {exchange.done && exchange.rows.length > 0 && <ResultChart rows={exchange.rows} />}
             {exchange.done && exchange.rows.length > 0 && <DataTable rows={exchange.rows} />}
           </div>
         ))}
@@ -231,6 +233,77 @@ export default function ResearchPage() {
         </button>
       </form>
     </div>
+  );
+}
+
+const SEQUENTIAL_X = ["player_game_number", "game_number", "game_date", "month", "week"];
+const EXCLUDED_METRICS = /(_id|_key|season_id|player_id|game_id)$/;
+
+/** Chart heuristic: line for sequential results, bars for rankings. */
+function ResultChart({ rows }: { rows: Record<string, unknown>[] }) {
+  const columns = Object.keys(rows[0] ?? {});
+  const numericColumns = columns.filter(
+    (column) =>
+      !EXCLUDED_METRICS.test(column) &&
+      !SEQUENTIAL_X.includes(column) &&
+      rows.every((row) => row[column] === null || typeof row[column] === "number"),
+  );
+  const xColumn = SEQUENTIAL_X.find((candidate) => columns.includes(candidate));
+  const labelColumn = columns.find(
+    (column) =>
+      rows.every((row) => typeof row[column] === "string") &&
+      new Set(rows.map((row) => row[column])).size > rows.length * 0.8,
+  );
+
+  const [metric, setMetric] = useState(numericColumns[0] ?? "");
+  const activeMetric = numericColumns.includes(metric) ? metric : numericColumns[0];
+
+  if (rows.length < 3 || numericColumns.length === 0) return null;
+  const chartable = xColumn ? rows.length >= 5 : Boolean(labelColumn) && rows.length <= 40;
+  if (!chartable || !activeMetric) return null;
+
+  const valid = rows.filter((row) => row[activeMetric] !== null);
+
+  return (
+    <details open className="rounded-lg border border-zinc-800 bg-zinc-900">
+      <summary className="flex cursor-pointer items-center justify-between px-4 py-3 text-xs font-medium text-zinc-400 hover:text-zinc-200">
+        <span>Chart</span>
+        {numericColumns.length > 1 && (
+          <select
+            value={activeMetric}
+            onClick={(event) => event.preventDefault()}
+            onChange={(event) => setMetric(event.target.value)}
+            className="rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs text-zinc-300"
+          >
+            {numericColumns.map((column) => (
+              <option key={column} value={column}>
+                {column}
+              </option>
+            ))}
+          </select>
+        )}
+      </summary>
+      <div className="border-t border-zinc-800 p-4">
+        {xColumn ? (
+          <TrendChart
+            yLabel={activeMetric}
+            points={valid.map((row, index) => ({
+              x: typeof row[xColumn] === "number" ? (row[xColumn] as number) : index,
+              xLabel: String(row[xColumn]),
+              y: Number(row[activeMetric]),
+            }))}
+          />
+        ) : (
+          <BarList
+            format="dec1"
+            rows={valid.slice(0, 20).map((row) => ({
+              label: String(row[labelColumn!]),
+              value: Number(row[activeMetric]),
+            }))}
+          />
+        )}
+      </div>
+    </details>
   );
 }
 

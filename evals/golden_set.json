@@ -69,6 +69,11 @@
     "sql_contains_any": ["goals_above_expected", "expected_goals", "xg"]
   },
   {
+    "id": "hot_streak",
+    "question": "Which players finished the season the hottest, and were they shooting above their expected goals?",
+    "sql_contains_any": ["mart_player_form", "points_last_10", "finishing_last_10"]
+  },
+  {
     "id": "player_game_log",
     "question": "How many points did Sidney Crosby record over his final 10 games of the season?",
     "sql_contains_any": ["fct_player_games"]

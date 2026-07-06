@@ -93,6 +93,15 @@ Shooter xG per player (2025-26): unblocked_attempts, goals, expected_goals, goal
 ### nhl_marts.mart_team_xg_season
 Team xG (2025-26): xg_for, xg_against, xg_share (xG% = xg_for / (xg_for + xg_against)), goals_above_expected_for (finishing), goals_above_expected_against (negative = goaltending saving more than expected), unblocked attempt counts. PK team_season_key.
 
+### nhl_marts.mart_player_form
+Rolling form per SKATER per game (2025-26): each row is that player's last-10-games window ending at that game.
+- player_game_key (PK), game_id, season_id, game_date, player_game_number, player_id, full_name, position_group, team_abbrev, opponent_abbrev
+- goals, assists, points, shots (that single game)
+- games_in_window (INT64: min(player_game_number, 10)), points_last_10, goals_last_10, shots_last_10 (INT64)
+- xg_last_10 (FLOAT64), finishing_last_10 (FLOAT64: goals_last_10 - xg_last_10; positive = finishing hot)
+- points_per_gp_last_10, season_points_per_gp, form_delta (FLOAT64: last-10 pace minus season pace; positive = hotter than their own baseline)
+For "hottest right now / at season end" take each player's latest row: QUALIFY ROW_NUMBER() OVER (PARTITION BY player_id ORDER BY player_game_number DESC) = 1, and require games_in_window = 10.
+
 ### nhl_marts.mart_player_similarity
 Statistical comps (2025-26). Skaters: cosine similarity on z-scored per-60 stats blended 75/25 with the prior season, within position group, three weight profiles. Goalies: goalie-specific features, 'overall' profile only.
 - player_id, comp_player_id (INT64), similarity_score (FLOAT64), rank (INT64: 1-25), season_id (INT64)
@@ -122,6 +131,9 @@ SQL: SELECT result, COUNT(*) AS games FROM nhl_marts.fct_team_games g WHERE team
 
 Q: How did Sidney Crosby produce over his last 10 games?
 SQL: SELECT player_game_number, game_date, opponent_abbrev, goals, assists, points, shots, toi_minutes FROM nhl_marts.fct_player_games WHERE full_name = 'Sidney Crosby' AND player_game_number > (SELECT MAX(player_game_number) - 10 FROM nhl_marts.fct_player_games WHERE full_name = 'Sidney Crosby') ORDER BY player_game_number
+
+Q: Who was the hottest scorer over the final 10 games, and was it sustainable?
+SQL: SELECT full_name, team_abbrev, points_last_10, goals_last_10, xg_last_10, finishing_last_10, form_delta FROM nhl_marts.mart_player_form WHERE games_in_window = 10 QUALIFY ROW_NUMBER() OVER (PARTITION BY player_id ORDER BY player_game_number DESC) = 1 ORDER BY points_last_10 DESC LIMIT 10
 
 Q: Which team had the best expected-goals share, and did their finishing match?
 SQL: SELECT team_abbrev, xg_share, xg_for, goals_for_model, goals_above_expected_for FROM nhl_marts.mart_team_xg_season ORDER BY xg_share DESC LIMIT 10

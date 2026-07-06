@@ -2,6 +2,20 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { RadarChart, ShotMap, type Shot } from "@/lib/charts";
+
+const RADAR_AXES: { pctKey: string; label: string }[] = [
+  { pctKey: "pct_points_per_gp", label: "Pts" },
+  { pctKey: "pct_goals_per_gp", label: "Goals" },
+  { pctKey: "pct_shots_per_gp", label: "Shots" },
+  { pctKey: "pct_ev_points_per_60", label: "EV/60" },
+  { pctKey: "pct_pp_points_per_gp", label: "PP" },
+  { pctKey: "pct_toi_per_gp", label: "TOI" },
+  { pctKey: "pct_plus_minus", label: "+/-" },
+  { pctKey: "pct_shooting", label: "Sh%" },
+  { pctKey: "pct_hits_per_gp", label: "Hits" },
+  { pctKey: "pct_blocks_per_gp", label: "Blocks" },
+];
 
 type StatLine = Record<string, unknown> & {
   player_id: number;
@@ -108,6 +122,20 @@ export default function CompsPage() {
   const [error, setError] = useState<string | null>(null);
   const [blurbs, setBlurbs] = useState<Record<string, string>>({});
   const [blurbLoading, setBlurbLoading] = useState(false);
+  const [shotsCache, setShotsCache] = useState<Record<number, Shot[]>>({});
+
+  async function loadShots(playerId: number) {
+    if (shotsCache[playerId]) return;
+    try {
+      const response = await fetch(`/api/shots?id=${playerId}`);
+      const data = await response.json();
+      if (response.ok && data.shots) {
+        setShotsCache((previous) => ({ ...previous, [playerId]: data.shots }));
+      }
+    } catch {
+      // shot maps are an enhancement; ignore fetch failures
+    }
+  }
 
   // Load the eligible-player list once for instant client-side typeahead.
   useEffect(() => {
@@ -381,6 +409,56 @@ export default function CompsPage() {
                   >
                     {blurbLoading ? "Writing scouting blurb…" : "Explain this comparison"}
                   </button>
+                )}
+
+                {!isGoalie && (
+                  <details className="rounded-lg border border-zinc-800 bg-zinc-900">
+                    <summary className="cursor-pointer px-4 py-3 text-xs font-medium text-zinc-400 hover:text-zinc-200">
+                      Percentile radar
+                    </summary>
+                    <div className="flex justify-center border-t border-zinc-800 p-4">
+                      <RadarChart
+                        nameA={player.full_name}
+                        nameB={activeComp.full_name}
+                        axes={RADAR_AXES.map(({ pctKey, label }) => ({
+                          label,
+                          a: Number(player[pctKey] ?? 0),
+                          b: Number(activeComp[pctKey] ?? 0),
+                        }))}
+                      />
+                    </div>
+                  </details>
+                )}
+
+                {!isGoalie && (
+                  <details
+                    className="rounded-lg border border-zinc-800 bg-zinc-900"
+                    onToggle={(event) => {
+                      if ((event.target as HTMLDetailsElement).open) {
+                        loadShots(player.player_id);
+                        loadShots(activeComp.player_id);
+                      }
+                    }}
+                  >
+                    <summary className="cursor-pointer px-4 py-3 text-xs font-medium text-zinc-400 hover:text-zinc-200">
+                      Shot maps (xG model)
+                    </summary>
+                    <div className="grid gap-4 border-t border-zinc-800 p-4 sm:grid-cols-2">
+                      {[player, activeComp].map((line) =>
+                        shotsCache[line.player_id] ? (
+                          <ShotMap
+                            key={line.player_id}
+                            title={line.full_name}
+                            shots={shotsCache[line.player_id]}
+                          />
+                        ) : (
+                          <div key={line.player_id} className="text-xs text-zinc-500">
+                            Loading {line.full_name}&apos;s shots…
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </details>
                 )}
 
                 <Link

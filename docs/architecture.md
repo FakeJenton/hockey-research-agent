@@ -143,6 +143,16 @@ The comps typeahead is served by one cached endpoint returning all eligible play
 - **Validation**: holdout AUC and calibration print at training time; a tagged dbt test (`assert_xg_calibrated`) fails the pipeline if league predicted goals drift more than 5% from actual. The two-stage dbt build (`--exclude tag:xg`, then `--select tag:xg` after scoring) keeps the aggregate marts from ever building on a stale shots table.
 - **Honesty**: the schema doc tells the agent to describe this as "expected goals from shot location and type"; screens, pre-shot movement, and shooter skill are exactly what proprietary models add on top.
 
+## Visuals
+
+All charts are dependency-free SVG components (`web/lib/charts.tsx`):
+
+- **Leaderboards** (`/leaders`, `/api/leaders`): seven bar-chart sections straight from the marts, edge-cached daily.
+- **Agent auto-charts**: a heuristic on the result set (sequential x column like game_number/game_date = line chart; a mostly-unique label column with <= 40 rows = bar chart) renders above the data table with a metric picker. No chart appears when the heuristic is unsure, so the feature never mislabels data.
+- **Percentile radar** (comps page): player-vs-comp overlay of the league percentile columns, the scouting-card view of the same numbers in the stat table.
+- **Shot maps** (comps page, `/api/shots`): half-rink scatter of every model-eligible attempt, marker area scaled by xG, goals in amber. Coordinates normalize to attack right; defensive-zone attempts (~0.5%, unmappable mirror) are excluded and the footnote says so.
+- **Rolling form** (`mart_player_form`): each skater-game row carries last-10 points/goals/shots, rolling xG, finishing vs expected, and form_delta vs their own season baseline, so "who is hot" decomposes into shooting more vs finishing above expected.
+
 ## Similarity methodology (v2)
 
 - Pools: 2025-26 skaters with >= 20 GP split into forwards (476) and defensemen (239), plus goalies with >= 15 GP (70). Comps never cross position groups.

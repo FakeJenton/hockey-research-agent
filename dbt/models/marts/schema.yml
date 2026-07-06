@@ -117,3 +117,13 @@ models:
         tests: [unique, not_null]
       - name: xg_share
         tests: [not_null]
+
+  - name: mart_player_form
+    description: Rolling last-10 form per skater per game, with rolling xG for streak decomposition.
+    config:
+      tags: [xg]
+    columns:
+      - name: player_game_key
+        tests: [unique, not_null]
+      - name: points_last_10
+        tests: [not_null]

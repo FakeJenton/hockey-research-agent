@@ -11,6 +11,8 @@ const LIMITS: Record<string, number> = {
   "/api/blurb": 15,
   "/api/comps": 30,
   "/api/players": 30,
+  "/api/leaders": 30,
+  "/api/shots": 30,
 };
 
 const hits = new Map<string, number[]>();
