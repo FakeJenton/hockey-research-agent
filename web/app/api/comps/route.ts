@@ -11,24 +11,37 @@ const STAT_COLUMNS = `
   m.shooting_pct, m.toi_minutes_per_gp, m.pp_points, m.hits, m.blocked_shots,
   m.pim, m.plus_minus, m.faceoff_pct`;
 
-// Player search + comps lookup. The name is passed as a BigQuery query
-// parameter (@name), never interpolated into SQL text.
+// Player search + comps lookup, by exact player id (from the typeahead) or
+// by name. Both values are passed as BigQuery query parameters, never
+// interpolated into SQL text.
 export async function GET(request: Request) {
-  const name = new URL(request.url).searchParams.get("name")?.trim() ?? "";
-  if (name.length < 2 || name.length > 100) {
-    return NextResponse.json({ error: "Provide a player name (2+ characters)" }, { status: 400 });
+  const params = new URL(request.url).searchParams;
+  const id = Number(params.get("id"));
+  const name = params.get("name")?.trim() ?? "";
+  if (!Number.isInteger(id) || id <= 0) {
+    if (name.length < 2 || name.length > 100) {
+      return NextResponse.json({ error: "Provide a player name (2+ characters)" }, { status: 400 });
+    }
   }
 
   try {
-    const matches = await runMartsQuery(
-      `SELECT ${STAT_COLUMNS}
-       FROM nhl_marts.mart_player_season m
-       WHERE m.season_id = ${SEASON_ID}
-         AND CONTAINS_SUBSTR(m.full_name, @name)
-       ORDER BY m.points DESC
-       LIMIT 5`,
-      { name },
-    );
+    const matches =
+      Number.isInteger(id) && id > 0
+        ? await runMartsQuery(
+            `SELECT ${STAT_COLUMNS}
+             FROM nhl_marts.mart_player_season m
+             WHERE m.season_id = ${SEASON_ID} AND m.player_id = @id`,
+            { id },
+          )
+        : await runMartsQuery(
+            `SELECT ${STAT_COLUMNS}
+             FROM nhl_marts.mart_player_season m
+             WHERE m.season_id = ${SEASON_ID}
+               AND CONTAINS_SUBSTR(m.full_name, @name)
+             ORDER BY m.points DESC
+             LIMIT 5`,
+            { name },
+          );
 
     if (matches.length === 0) {
       return NextResponse.json({

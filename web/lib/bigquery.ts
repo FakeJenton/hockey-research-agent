@@ -61,10 +61,11 @@ export function validateSql(rawSql: string): SqlValidation {
   return { ok: true, sql: limited };
 }
 
-/** Run a validated read-only query; returns at most ROW_LIMIT plain-object rows. */
+/** Run a validated read-only query; returns at most maxRows plain-object rows. */
 export async function runMartsQuery(
   sql: string,
   params?: Record<string, string | number>,
+  maxRows: number = ROW_LIMIT,
 ): Promise<Record<string, unknown>[]> {
   const bigquery = getBigQuery();
   const [job] = await bigquery.createQueryJob({
@@ -74,7 +75,7 @@ export async function runMartsQuery(
     maximumBytesBilled: String(MAX_BYTES_BILLED),
     useLegacySql: false,
   });
-  const [rows] = await job.getQueryResults({ maxResults: ROW_LIMIT, timeoutMs: TIMEOUT_MS });
+  const [rows] = await job.getQueryResults({ maxResults: maxRows, timeoutMs: TIMEOUT_MS });
   // BigQuery wraps DATE/TIMESTAMP in objects with a .value; flatten for JSON
   return rows.map((row: Record<string, unknown>) => {
     const flat: Record<string, unknown> = {};

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type StatLine = {
   player_id: number;
@@ -33,6 +33,41 @@ type CompsResult = {
   message?: string | null;
 };
 
+type PlayerRef = {
+  player_id: number;
+  full_name: string;
+  team_abbrevs: string;
+  position_code: string;
+};
+
+/** Lowercase and strip diacritics so "stutzle" matches "Stützle". */
+function normalize(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "");
+}
+
+const MAX_SUGGESTIONS = 8;
+
+/** Match on any name part's prefix (first OR last name), then substring. */
+function suggestPlayers(players: PlayerRef[], query: string): PlayerRef[] {
+  const q = normalize(query.trim());
+  if (q.length < 2) return [];
+  const prefixMatches: PlayerRef[] = [];
+  const substringMatches: PlayerRef[] = [];
+  for (const player of players) {
+    const full = normalize(player.full_name);
+    if (full.split(/[\s-]+/).some((part) => part.startsWith(q)) || full.startsWith(q)) {
+      prefixMatches.push(player);
+    } else if (full.includes(q)) {
+      substringMatches.push(player);
+    }
+    if (prefixMatches.length >= MAX_SUGGESTIONS) break;
+  }
+  return [...prefixMatches, ...substringMatches].slice(0, MAX_SUGGESTIONS);
+}
+
 const STAT_ROWS: { key: keyof StatLine; label: string; format?: "pct" | "fixed1" }[] = [
   { key: "games_played", label: "GP" },
   { key: "goals", label: "Goals" },
@@ -52,6 +87,8 @@ const STAT_ROWS: { key: keyof StatLine; label: string; format?: "pct" | "fixed1"
 
 export default function CompsPage() {
   const [name, setName] = useState("");
+  const [players, setPlayers] = useState<PlayerRef[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CompsResult | null>(null);
   const [selected, setSelected] = useState<StatLine | null>(null);
@@ -59,16 +96,31 @@ export default function CompsPage() {
   const [blurbs, setBlurbs] = useState<Record<number, string>>({});
   const [blurbLoading, setBlurbLoading] = useState(false);
 
-  async function search(searchName: string) {
+  // Load the eligible-player list once for instant client-side typeahead.
+  useEffect(() => {
+    fetch("/api/players")
+      .then((response) => response.json())
+      .then((data) => setPlayers(data.players ?? []))
+      .catch(() => {}); // typeahead is an enhancement; free-text search still works
+  }, []);
+
+  const suggestions = useMemo(
+    () => (showSuggestions ? suggestPlayers(players, name) : []),
+    [players, name, showSuggestions],
+  );
+
+  async function search(searchName: string, playerId?: number) {
     const trimmed = searchName.trim();
-    if (trimmed.length < 2 || loading) return;
+    if ((trimmed.length < 2 && !playerId) || loading) return;
+    setShowSuggestions(false);
     setLoading(true);
     setError(null);
     setResult(null);
     setSelected(null);
     setBlurbs({});
     try {
-      const response = await fetch(`/api/comps?name=${encodeURIComponent(trimmed)}`);
+      const query = playerId ? `id=${playerId}` : `name=${encodeURIComponent(trimmed)}`;
+      const response = await fetch(`/api/comps?${query}`);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error ?? "Search failed");
       setResult(data);
@@ -113,16 +165,50 @@ export default function CompsPage() {
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          search(name);
+          if (suggestions.length > 0) {
+            setName(suggestions[0].full_name);
+            search(suggestions[0].full_name, suggestions[0].player_id);
+          } else {
+            search(name);
+          }
         }}
         className="flex gap-2"
       >
-        <input
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          placeholder="e.g. Sidney Crosby"
-          className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm placeholder-zinc-500 outline-none focus:border-amber-400"
-        />
+        <div className="relative flex-1">
+          <input
+            value={name}
+            onChange={(event) => {
+              setName(event.target.value);
+              setShowSuggestions(true);
+            }}
+            onFocus={() => setShowSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+            placeholder="Start typing a first or last name…"
+            className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm placeholder-zinc-500 outline-none focus:border-amber-400"
+          />
+          {suggestions.length > 0 && (
+            <ul className="absolute z-10 mt-1 w-full overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl shadow-black/50">
+              {suggestions.map((suggestion) => (
+                <li key={suggestion.player_id}>
+                  <button
+                    type="button"
+                    onMouseDown={(event) => {
+                      event.preventDefault(); // fire before the input's blur
+                      setName(suggestion.full_name);
+                      search(suggestion.full_name, suggestion.player_id);
+                    }}
+                    className="flex w-full items-center justify-between px-4 py-2 text-left text-sm hover:bg-zinc-800"
+                  >
+                    <span>{suggestion.full_name}</span>
+                    <span className="text-xs text-zinc-500">
+                      {suggestion.position_code} · {suggestion.team_abbrevs}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         <button
           type="submit"
           disabled={loading || name.trim().length < 2}
