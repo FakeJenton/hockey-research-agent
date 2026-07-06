@@ -1,0 +1,7 @@
+requests>=2.32
+google-cloud-bigquery>=3.30
+pandas>=2.2
+scikit-learn>=1.5
+pytest>=8.0
+dbt-core>=1.10
+dbt-bigquery>=1.10
