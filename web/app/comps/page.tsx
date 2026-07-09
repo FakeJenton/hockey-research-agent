@@ -223,10 +223,11 @@ export default function CompsPage() {
   return (
     <div className="space-y-6">
       <section>
-        <h2 className="text-2xl font-semibold tracking-tight">Player similarity</h2>
-        <p className="mt-1 text-sm text-zinc-400">
-          Search any 2025-26 skater or goalie to see their closest statistical comps: z-scored
-          per-60 profiles blended with the prior season, compared within position group.
+        <h2 className="text-2xl font-semibold tracking-tight">Find any player&apos;s statistical twins</h2>
+        <p className="mt-1 max-w-2xl text-sm text-zinc-400">
+          A full scouting card for every 2025-26 skater and goalie: their closest comps by
+          overall, offensive, or physical profile, league percentile grades, a comparison radar,
+          and shot maps from the expected-goals model.
         </p>
       </section>
 

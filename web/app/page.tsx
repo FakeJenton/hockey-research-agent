@@ -18,10 +18,10 @@ type Exchange = {
 };
 
 const EXAMPLE_QUESTIONS = [
+  "Who won the 2026 Stanley Cup, and how did their playoff run unfold?",
   "Which teams most outperformed their expected goals this season?",
   "How did Sidney Crosby produce over his last 10 games?",
   "How do Wayne Gretzky's career numbers compare to Gordie Howe's?",
-  "How has Toronto's penalty kill trended over their last 15 games?",
 ];
 
 export default function ResearchPage() {
@@ -142,38 +142,62 @@ export default function ResearchPage() {
   return (
     <div className="space-y-6">
       {thread.length === 0 ? (
-        <section className="space-y-8 pt-6">
-          <div className="max-w-2xl">
-            <h2 className="text-3xl font-semibold tracking-tight">
-              Ask anything from <span className="text-amber-400">1917 to today</span>
-            </h2>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-              Every answer is real SQL against a tested BigQuery warehouse: every NHL season
-              since 1917-18 including playoffs, career totals, every 2025-26 game through the
-              Cup Final, and 163K shots scored by an expected-goals model. Follow-ups keep the conversation context, and you can always
-              see the queries behind an answer.
+        <section className="space-y-10 pt-8">
+          <div className="max-w-3xl">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-amber-400">
+              Conversational NHL analytics
             </p>
+            <h2 className="text-4xl font-semibold leading-tight tracking-tight">
+              A century of hockey.
+              <br />
+              <span className="text-amber-400">One question away.</span>
+            </h2>
+            <p className="mt-4 max-w-2xl text-sm leading-relaxed text-zinc-400">
+              Hockey Research Agent turns plain English into analyst-grade answers: instant deep
+              dives across every season, every playoff run, and every shot, with the data and SQL
+              behind each number one click away.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {[
+              ["108", "NHL seasons, 1917 to today"],
+              ["75K+", "player-seasons, incl. playoffs"],
+              ["163K", "shots scored by an xG model"],
+              ["100%", "of answers show their SQL"],
+            ].map(([value, label]) => (
+              <div key={label} className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-4 py-3">
+                <div className="text-2xl font-semibold text-amber-400">{value}</div>
+                <div className="mt-0.5 text-[11px] leading-snug text-zinc-500">{label}</div>
+              </div>
+            ))}
           </div>
 
           <div className="grid gap-3 text-xs sm:grid-cols-3">
             {[
-              ["1", "You ask in plain English", "“Who ran hottest over their final 10 games?”"],
-              ["2", "Claude writes and runs SQL", "read-only, guardrailed, self-correcting"],
-              ["3", "Answer + chart + the SQL", "so every number can be checked"],
-            ].map(([step, title, detail]) => (
-              <div key={step} className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
-                <span className="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-[10px] font-bold text-zinc-950">
-                  {step}
-                </span>
-                <span className="font-medium text-zinc-200">{title}</span>
-                <p className="mt-1.5 text-zinc-500">{detail}</p>
+              [
+                "Ask like a scout",
+                "Form, matchups, careers, eras, whole playoff runs. Follow-ups keep context, so one question becomes a real line of inquiry.",
+              ],
+              [
+                "Answers with insight built in",
+                "Streamed responses arrive with charts, game logs, rolling form, and an expected-goals model that separates shooting talent from luck.",
+              ],
+              [
+                "Trust every number",
+                "Read-only SQL over a 73-test warehouse validated against the record book. The query behind every answer is one click away.",
+              ],
+            ].map(([title, detail]) => (
+              <div key={title} className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
+                <span className="font-semibold text-zinc-100">{title}</span>
+                <p className="mt-2 leading-relaxed text-zinc-500">{detail}</p>
               </div>
             ))}
           </div>
 
           <div>
             <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
-              Try one
+              See it answer
             </p>
             <div className="flex flex-wrap gap-2">
               {EXAMPLE_QUESTIONS.map((example) => (
@@ -268,7 +292,7 @@ export default function ResearchPage() {
           event.preventDefault();
           ask(question);
         }}
-        className="sticky bottom-4 flex gap-2"
+        className={thread.length > 0 ? "sticky bottom-4 flex gap-2" : "flex gap-2"}
       >
         <input
           value={question}

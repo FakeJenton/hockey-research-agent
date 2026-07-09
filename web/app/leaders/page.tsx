@@ -28,10 +28,11 @@ export default function LeadersPage() {
   return (
     <div className="space-y-6">
       <section>
-        <h2 className="text-2xl font-semibold tracking-tight">2025-26 league leaders</h2>
-        <p className="mt-1 text-sm text-zinc-400">
-          Straight from the marts the research agent queries, including the expected-goals model.
-          Click into Research to interrogate any of these numbers.
+        <h2 className="text-2xl font-semibold tracking-tight">The 2025-26 season at a glance</h2>
+        <p className="mt-1 max-w-2xl text-sm text-zinc-400">
+          Scoring races, goaltending, closing form, and what the expected-goals model thinks of
+          it all. Every board comes from the same warehouse the research agent queries, so any
+          number here can be interrogated with a question.
         </p>
       </section>
 

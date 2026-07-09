@@ -54,7 +54,7 @@ export default function RootLayout({
                     1917-18 → 2025-26
                   </span>
                 </div>
-                <p className="text-xs text-zinc-500">NHL API → BigQuery → dbt → Claude</p>
+                <p className="text-xs text-zinc-500">Conversational analytics for a century of hockey</p>
               </div>
             </Link>
             <Nav />
@@ -62,8 +62,8 @@ export default function RootLayout({
           <main className="flex-1 py-8">{children}</main>
           <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-800 py-5 text-xs text-zinc-600">
             <span>
-              Uses publicly available NHL API data. Not affiliated with or endorsed by the NHL or
-              any team.
+              Built on BigQuery, dbt, and Claude. Uses publicly available NHL API data; not
+              affiliated with or endorsed by the NHL or any team.
             </span>
             <a
               href="https://github.com/FakeJenton/hockey-research-agent"
