@@ -12,28 +12,80 @@ type Section = {
 };
 
 export default function LeadersPage() {
-  const [sections, setSections] = useState<Section[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [scope, setScope] = useState<"season" | "alltime">("season");
+  const [activeOnly, setActiveOnly] = useState(false);
+  // keyed by query string so switching scopes derives a fresh loading state
+  // instead of resetting state synchronously in the effect
+  const [loaded, setLoaded] = useState<{ query: string; sections: Section[] } | null>(null);
+  const [failed, setFailed] = useState<{ query: string; message: string } | null>(null);
+
+  const query = scope === "alltime" ? `?scope=alltime${activeOnly ? "&active=1" : ""}` : "";
 
   useEffect(() => {
-    fetch("/api/leaders")
+    let cancelled = false;
+    fetch(`/api/leaders${query}`)
       .then((response) => response.json())
       .then((data) => {
-        if (data.sections) setSections(data.sections);
-        else setError(data.error ?? "Failed to load");
+        if (cancelled) return;
+        if (data.sections) setLoaded({ query, sections: data.sections });
+        else setFailed({ query, message: data.error ?? "Failed to load" });
       })
-      .catch(() => setError("Failed to load leaderboards"));
-  }, []);
+      .catch(() => {
+        if (!cancelled) setFailed({ query, message: "Failed to load leaderboards" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [query]);
+
+  const sections = loaded?.query === query ? loaded.sections : null;
+  const error = failed?.query === query ? failed.message : null;
 
   return (
     <div className="space-y-6">
-      <section>
-        <h2 className="text-2xl font-semibold tracking-tight">The 2025-26 season at a glance</h2>
-        <p className="mt-1 max-w-2xl text-sm text-zinc-400">
-          Scoring races, goaltending, closing form, and what the expected-goals model thinks of
-          it all. Every board comes from the same warehouse the research agent queries, so any
-          number here can be interrogated with a question.
-        </p>
+      <section className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold tracking-tight">
+            {scope === "season" ? "The 2025-26 season at a glance" : "The all-time record book"}
+          </h2>
+          <p className="mt-1 max-w-2xl text-sm text-zinc-400">
+            {scope === "season"
+              ? "Scoring races, goaltending, closing form, and what the expected-goals model thinks of it all. Every board comes from the same warehouse the research agent queries, so any number here can be interrogated with a question."
+              : "Career and single-season leaderboards across every NHL season since 1917-18. Flip to active players to see who is climbing the historic lists right now."}
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex gap-1 rounded-lg bg-zinc-900 p-1 text-xs">
+            {(
+              [
+                ["season", "2025-26"],
+                ["alltime", "All-time"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => setScope(id)}
+                className={`rounded-md px-3 py-1.5 transition-colors ${
+                  scope === id ? "bg-amber-400 font-semibold text-zinc-950" : "hover:bg-zinc-800"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {scope === "alltime" && (
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-zinc-400">
+              <input
+                type="checkbox"
+                checked={activeOnly}
+                onChange={(event) => setActiveOnly(event.target.checked)}
+                className="accent-amber-400"
+              />
+              Active players only
+            </label>
+          )}
+        </div>
       </section>
 
       {error && (

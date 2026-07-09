@@ -8,10 +8,24 @@ const SEASON_ID = 20252026;
 type LeaderRow = { label: string; sublabel: string; value: number };
 type Section = { id: string; title: string; note: string; format: "int" | "dec1" | "pct"; rows: LeaderRow[] };
 
-// League leaderboards for the /leaders page: seven fixed queries, edge-cached
-// for a day (the season is complete, so this is effectively static).
-export async function GET() {
+// Formats 19811982 as "1981-82" for sublabels.
+const SEASON_LABEL = `CONCAT(CAST(DIV(season_id, 10000) AS STRING), '-', SUBSTR(CAST(MOD(season_id, 10000) AS STRING), 3, 2))`;
+
+// League leaderboards for the /leaders page. Two scopes: the current season
+// and all-time (career + single-season records), with an active-players-only
+// variant of all-time. Each URL variant is edge-cached for a day.
+export async function GET(request: Request) {
+  const params = new URL(request.url).searchParams;
+  const scope = params.get("scope") === "alltime" ? "alltime" : "season";
+  const activeOnly = params.get("active") === "1";
+
   try {
+    if (scope === "alltime") {
+      return NextResponse.json(
+        { sections: await allTimeSections(activeOnly) },
+        { headers: { "Cache-Control": "public, max-age=0, s-maxage=86400, stale-while-revalidate=86400" } },
+      );
+    }
     const [points, goals, xg, finishing, savePct, xgShare, hotClosers] = await Promise.all([
       runMartsQuery(
         `SELECT full_name AS label, team_abbrevs AS sublabel, points AS value
@@ -76,4 +90,71 @@ export async function GET() {
     console.error("leaders route error:", error);
     return NextResponse.json({ error: "Failed to load leaderboards" }, { status: 500 });
   }
+}
+
+async function allTimeSections(activeOnly: boolean): Promise<Section[]> {
+  // "active" always means: played in the current regular season
+  const careerFilter = activeOnly ? "WHERE is_active" : "";
+  const playoffCareerFilter = activeOnly
+    ? "WHERE c.player_id IN (SELECT player_id FROM nhl_marts.mart_player_career WHERE is_active)"
+    : "";
+  const seasonJoinFilter = activeOnly
+    ? "JOIN nhl_marts.mart_player_career c ON c.player_id = m.player_id AND c.is_active"
+    : "";
+
+  const [careerPoints, careerGoals, careerWins, playoffPoints, seasonGoals, seasonPoints] =
+    await Promise.all([
+      runMartsQuery(
+        `SELECT full_name AS label,
+                CONCAT(CAST(DIV(first_season_id, 10000) AS STRING), '-', CAST(MOD(last_season_id, 10000) AS STRING)) AS sublabel,
+                points AS value
+         FROM nhl_marts.mart_player_career ${careerFilter}
+         ORDER BY points DESC LIMIT 10`,
+      ),
+      runMartsQuery(
+        `SELECT full_name AS label,
+                CONCAT(CAST(DIV(first_season_id, 10000) AS STRING), '-', CAST(MOD(last_season_id, 10000) AS STRING)) AS sublabel,
+                goals AS value
+         FROM nhl_marts.mart_player_career ${careerFilter}
+         ORDER BY goals DESC LIMIT 10`,
+      ),
+      runMartsQuery(
+        `SELECT full_name AS label,
+                CONCAT(CAST(DIV(first_season_id, 10000) AS STRING), '-', CAST(MOD(last_season_id, 10000) AS STRING)) AS sublabel,
+                wins AS value
+         FROM nhl_marts.mart_goalie_career ${careerFilter}
+         ORDER BY wins DESC LIMIT 10`,
+      ),
+      runMartsQuery(
+        `SELECT c.full_name AS label,
+                CONCAT(CAST(c.games_played AS STRING), ' playoff games') AS sublabel,
+                c.points AS value
+         FROM nhl_marts.mart_player_playoff_career c ${playoffCareerFilter}
+         ORDER BY c.points DESC LIMIT 10`,
+      ),
+      runMartsQuery(
+        `SELECT m.full_name AS label,
+                CONCAT(m.team_abbrevs, ' · ', ${SEASON_LABEL}) AS sublabel,
+                m.goals AS value
+         FROM nhl_marts.mart_player_season m ${seasonJoinFilter}
+         ORDER BY m.goals DESC LIMIT 10`,
+      ),
+      runMartsQuery(
+        `SELECT m.full_name AS label,
+                CONCAT(m.team_abbrevs, ' · ', ${SEASON_LABEL}) AS sublabel,
+                m.points AS value
+         FROM nhl_marts.mart_player_season m ${seasonJoinFilter}
+         ORDER BY m.points DESC LIMIT 10`,
+      ),
+    ]);
+
+  const who = activeOnly ? "active players" : "all players, 1917 to today";
+  return [
+    { id: "career_points", title: "Career points", note: who, format: "int", rows: careerPoints as LeaderRow[] },
+    { id: "career_goals", title: "Career goals", note: who, format: "int", rows: careerGoals as LeaderRow[] },
+    { id: "career_wins", title: "Career goalie wins", note: who, format: "int", rows: careerWins as LeaderRow[] },
+    { id: "playoff_points", title: "Career playoff points", note: who, format: "int", rows: playoffPoints as LeaderRow[] },
+    { id: "season_goals", title: "Best goal seasons", note: `single season, ${who}`, format: "int", rows: seasonGoals as LeaderRow[] },
+    { id: "season_points", title: "Best point seasons", note: `single season, ${who}`, format: "int", rows: seasonPoints as LeaderRow[] },
+  ];
 }
