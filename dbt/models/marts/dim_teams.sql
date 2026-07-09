@@ -1,13 +1,17 @@
--- The 32 active NHL franchises, one row per tricode, carrying the team's
--- current identity. Grain note: the NHL assigns a NEW teamId on rebrand
--- (Utah Hockey Club id 59 in 2024-25 became Utah Mammoth id 68 in 2025-26,
--- both tricode UTA), so team_id alone over-counts franchises; we keep the
--- team_id from each franchise's most recent season.
+-- One row per franchise tricode that has ever played an NHL season,
+-- carrying the most recent identity for that tricode. Grain notes:
+-- - The NHL mints a NEW teamId on rebrand (Utah Hockey Club id 59 became
+--   Utah Mammoth id 68, both UTA), so a teamId grain over-counts; the
+--   most recent team_id per tricode wins.
+-- - With full history ingested, defunct franchises (QUE, HFD, ...) are
+--   real rows: is_active separates the current 32.
+-- - conference/division come from the current standings and are null for
+--   defunct franchises.
 with teams as (
     select * from {{ ref('stg_teams') }}
 ),
 
-active_seasons as (
+team_seasons as (
     select
         team_id,
         max(season_id) as latest_season_id
@@ -20,13 +24,13 @@ ranked as (
         teams.team_id,
         teams.team_name,
         teams.tri_code,
-        active_seasons.latest_season_id,
+        team_seasons.latest_season_id,
         row_number() over (
             partition by teams.tri_code
-            order by active_seasons.latest_season_id desc
+            order by team_seasons.latest_season_id desc
         ) as row_num
     from teams
-    inner join active_seasons using (team_id)
+    inner join team_seasons using (team_id)
 ),
 
 standings as (
@@ -37,6 +41,8 @@ select
     ranked.team_id,
     ranked.team_name,
     ranked.tri_code,
+    ranked.latest_season_id,
+    ranked.latest_season_id = 20252026 as is_active,
     standings.conference,
     standings.division
 from ranked

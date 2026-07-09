@@ -38,8 +38,8 @@ select
     otGoals as ot_goals,
     shots,
     shootingPct as shooting_pct,
-    faceoffWinPct as faceoff_win_pct,
-    pointsPerGame as points_per_game,
-    timeOnIcePerGame as toi_per_gp_seconds
+    safe_cast(faceoffWinPct as float64) as faceoff_win_pct,
+    safe_cast(pointsPerGame as float64) as points_per_game,
+    safe_cast(timeOnIcePerGame as float64) as toi_per_gp_seconds
 from deduped
 where row_num = 1

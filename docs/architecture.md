@@ -136,6 +136,16 @@ Grain decisions worth noting:
 
 The comps typeahead is served by one cached endpoint returning all eligible players, filtered client-side, so autocompletion costs zero warehouse queries per keystroke; selections look up by `player_id` (two Sebastian Ahos exist).
 
+## Historical coverage and era honesty
+
+Season-level reports are ingested for every NHL season, 1917-18 through 2025-26 (the 2004-05 lockout returns zero rows and is skipped naturally). Two data-quality traps came with the century of history:
+
+- **False zeros.** The realtime report returns 0 hits/blocks for every skater in pre-tracking eras rather than nulls. Staging nulls any stat whose league-wide season total is zero, a data-driven rule that needs no hardcoded era table. Career aggregates therefore skip untracked seasons instead of summing fabricated zeros.
+- **Autodetect drift.** With 1917-era rows (all nulls) leading the load files, BigQuery autodetected TOI and faceoff columns as STRING. Staging now SAFE_CASTs every drift-prone numeric column.
+- **Era-scoped tests.** not_null tests on save_pct / pp_pct / pk_pct are scoped to the seasons where the stat was tracked (and to goalies who actually faced a shot; the league has a dozen cup-of-coffee goalies with 0 shots against, including the Hurricanes' emergency equipment-manager goalie).
+
+Career marts (`mart_player_career`, `mart_goalie_career`) validate exactly against the record book: Gretzky 2,857 points / 894 goals / 1,487 games, Howe 801 goals, Brodeur 691 wins / 125 shutouts, and the real all-time top three goal seasons (92, 87, 86).
+
 ## Expected goals model
 
 - **Data**: ~160K shot attempts parsed from play-by-play at ingest time (rebound/rush flags need event ordering, which is awkward to reconstruct in SQL, so flattening happens in Python where the sequence exists). Attack direction resolves exactly from `homeTeamDefendingSide` + shooter side, so distance/angle are correct in all zones, not just offensive-zone shots.

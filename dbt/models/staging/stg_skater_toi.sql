@@ -20,13 +20,13 @@ select
     playerId as player_id,
     cast(season_id as int64) as season_id,
     gamesPlayed as games_played,
-    timeOnIce as toi_seconds,
-    evTimeOnIce as ev_toi_seconds,
-    ppTimeOnIce as pp_toi_seconds,
-    shTimeOnIce as sh_toi_seconds,
-    evTimeOnIcePerGame as ev_toi_per_gp_seconds,
-    ppTimeOnIcePerGame as pp_toi_per_gp_seconds,
-    shTimeOnIcePerGame as sh_toi_per_gp_seconds,
+    safe_cast(timeOnIce as float64) as toi_seconds,
+    safe_cast(evTimeOnIce as float64) as ev_toi_seconds,
+    safe_cast(ppTimeOnIce as float64) as pp_toi_seconds,
+    safe_cast(shTimeOnIce as float64) as sh_toi_seconds,
+    safe_cast(evTimeOnIcePerGame as float64) as ev_toi_per_gp_seconds,
+    safe_cast(ppTimeOnIcePerGame as float64) as pp_toi_per_gp_seconds,
+    safe_cast(shTimeOnIcePerGame as float64) as sh_toi_per_gp_seconds,
     shifts
 from deduped
 where row_num = 1

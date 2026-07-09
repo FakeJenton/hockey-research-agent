@@ -9,7 +9,8 @@
 export const SCHEMA_DOC = `
 ## Warehouse schema (BigQuery dataset: nhl_marts)
 
-Seasons: season_id 20252026 (primary, complete) and 20242025 (comparison). Regular season only; there is NO playoff data anywhere. Percentages are decimals (0.814 = 81.4%). Game-grain tables cover 2025-26 only.
+Season coverage: mart_player_season, mart_goalie_season, mart_team_season, and the career marts cover EVERY NHL season from 19171918 through 20252026 (season_id format: 19171918 = the 1917-18 season; 20042005 lockout has no rows). Game-grain, shot-grain, similarity, form, and xG tables cover 2025-26 only. Regular season only; there is NO playoff data anywhere. Percentages are decimals (0.814 = 81.4%).
+Stat-era coverage (older seasons null these; aggregates skip nulls automatically): shots/shooting_pct from ~1959-60; plus_minus from ~1959-60; faceoff_pct, TOI columns and per-60 rates from ~1997-98; hits/blocked_shots/takeaways/giveaways from the modern era only. Never treat a null-era stat as zero.
 
 ### nhl_marts.dim_players
 One row per player (skaters and goalies), latest season identity.
@@ -19,9 +20,10 @@ One row per player (skaters and goalies), latest season identity.
 - latest_team_abbrevs (STRING), current_team_abbrev (STRING), latest_season_id (INT64)
 
 ### nhl_marts.dim_teams
-One row per active NHL franchise (32 rows).
+One row per franchise tricode that ever played (current identity per tricode; includes defunct franchises).
 - team_id (INT64), team_name (STRING), tri_code (STRING, e.g. "PIT")
-- conference (STRING): "Eastern"/"Western", division (STRING): e.g. "Metropolitan"
+- latest_season_id (INT64), is_active (BOOL: one of the current 32)
+- conference, division (STRING; null for defunct franchises)
 
 ### nhl_marts.mart_player_season
 One row per SKATER per season (goalies are in mart_goalie_season).
@@ -42,8 +44,18 @@ One row per GOALIE per season.
 - save_pct, goals_against_average (FLOAT64), saves, shots_against, goals_against, shutouts (INT64)
 - toi_minutes (FLOAT64), saves_per_start, shots_against_per_start, shutout_rate (FLOAT64)
 
+### nhl_marts.mart_player_career
+Career totals per SKATER across all ingested seasons (PK player_id). Use this for career questions instead of summing mart_player_season yourself.
+- player_id, full_name, position_code, position_group, last_team_abbrevs, birth_date
+- seasons_played, first_season_id, last_season_id, is_active (BOOL: played 2025-26)
+- games_played, goals, assists, points, points_per_gp, shots, shooting_pct (shot-tracked seasons only)
+- pp_goals, pp_points, sh_goals, game_winning_goals, pim, plus_minus, hits, blocked_shots (era-gated; null-heavy for older careers)
+
+### nhl_marts.mart_goalie_career
+Career totals per GOALIE (PK player_id): seasons_played, first/last_season_id, is_active, games_played, games_started, wins, losses, ot_losses, shutouts, saves, shots_against, save_pct (shot-tracked seasons only). No career GAA (minutes untracked in older eras).
+
 ### nhl_marts.mart_team_season
-One row per team per season (64 rows).
+One row per team per season, every season since 1917-18 (older seasons null modern stats like pp_pct/pk_pct/faceoff_win_pct; conference/division reflect the CURRENT alignment, not historical divisions).
 - team_season_key (PK), team_id, tri_code, season_id, team_name, conference, division
 - games_played, wins, losses, ot_losses, regulation_wins, shootout_wins, points, point_pct
 - goals_for, goals_against, goals_for_per_game, goals_against_per_game
@@ -110,8 +122,8 @@ Statistical comps (2025-26). Skaters: cosine similarity on z-scored per-60 stats
 Filter profile = 'overall' unless the user asks for an offense- or physicality-weighted comparison. Join comp_player_id to mart_player_season / mart_goalie_season for names and stats.
 
 ## Hard limits (state these instead of working around them)
-- No playoff data, no line combinations, no shift-level or tracking data.
-- Game-grain and shot-grain data are 2025-26 only; 2024-25 has season grain only.
+- No playoff data, no line combinations, no shift-level or tracking data. Career totals here are REGULAR SEASON only and may differ from published totals that include playoffs.
+- Game-grain and shot-grain data are 2025-26 only; every other season has season grain only.
 - Ice time by strength exists ONLY as season-level columns; short-handed per-60 production is not computable (no sh per-60 column) and per-60 splits do not exist at game grain.
 - xG comes from a simple public-features model (geometry, shot type, rebound/rush, strength). It excludes blocked shots and empty-net attempts and knows nothing about screens or pre-shot movement; describe it as "expected goals from shot location and type" if asked about methodology.
 
@@ -131,6 +143,12 @@ SQL: SELECT result, COUNT(*) AS games FROM nhl_marts.fct_team_games g WHERE team
 
 Q: How did Sidney Crosby produce over his last 10 games?
 SQL: SELECT player_game_number, game_date, opponent_abbrev, goals, assists, points, shots, toi_minutes FROM nhl_marts.fct_player_games WHERE full_name = 'Sidney Crosby' AND player_game_number > (SELECT MAX(player_game_number) - 10 FROM nhl_marts.fct_player_games WHERE full_name = 'Sidney Crosby') ORDER BY player_game_number
+
+Q: What are Sidney Crosby's career numbers?
+SQL: SELECT full_name, seasons_played, first_season_id, last_season_id, games_played, goals, assists, points, points_per_gp FROM nhl_marts.mart_player_career WHERE full_name = 'Sidney Crosby'
+
+Q: Who scored the most goals in a single season in NHL history?
+SQL: SELECT full_name, season_id, team_abbrevs, goals, games_played FROM nhl_marts.mart_player_season ORDER BY goals DESC LIMIT 10
 
 Q: Who was the hottest scorer over the final 10 games, and was it sustainable?
 SQL: SELECT full_name, team_abbrev, points_last_10, goals_last_10, xg_last_10, finishing_last_10, form_delta FROM nhl_marts.mart_player_form WHERE games_in_window = 10 QUALIFY ROW_NUMBER() OVER (PARTITION BY player_id ORDER BY player_game_number DESC) = 1 ORDER BY points_last_10 DESC LIMIT 10

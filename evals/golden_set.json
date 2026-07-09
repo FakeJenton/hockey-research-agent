@@ -69,6 +69,23 @@
     "sql_contains_any": ["goals_above_expected", "expected_goals", "xg"]
   },
   {
+    "id": "career_totals",
+    "question": "What are Sidney Crosby's career regular season numbers?",
+    "sql_contains_any": ["mart_player_career", "mart_goalie_career"],
+    "answer_contains_any": ["career", "seasons"]
+  },
+  {
+    "id": "historical_season",
+    "question": "Who scored the most goals in a single NHL season ever?",
+    "answer_contains_any": ["Gretzky", "92"],
+    "sql_contains_any": ["mart_player_season"]
+  },
+  {
+    "id": "era_null_honesty",
+    "question": "How many career hits does Gordie Howe have in this database?",
+    "answer_contains_any": ["not tracked", "wasn't tracked", "was not tracked", "no hit", "null", "not record", "era", "unavailable", "modern"]
+  },
+  {
     "id": "hot_streak",
     "question": "Which players finished the season the hottest, and were they shooting above their expected goals?",
     "sql_contains_any": ["mart_player_form", "points_last_10", "finishing_last_10"]

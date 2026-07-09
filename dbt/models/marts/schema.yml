@@ -43,9 +43,16 @@ models:
       - name: tri_code
         tests: [not_null]
       - name: pp_pct
-        tests: [not_null]
+        tests:
+          # special-teams percentages tracked from 1977-78
+          - not_null:
+              config:
+                where: "season_id >= 19771978"
       - name: pk_pct
-        tests: [not_null]
+        tests:
+          - not_null:
+              config:
+                where: "season_id >= 19771978"
 
   - name: fct_team_games
     description: One row per team per 2025-26 regular-season game (2,624 rows), from that team's perspective.
@@ -83,7 +90,11 @@ models:
       - name: player_season_key
         tests: [unique, not_null]
       - name: save_pct
-        tests: [not_null]
+        tests:
+          # save % requires shot tracking; older eras are legitimately null
+          - not_null:
+              config:
+                where: "season_id >= 19591960 AND shots_against > 0"
 
   - name: fct_player_games
     description: One row per player per 2025-26 game (skaters and goalies) with per-player game numbering.
@@ -117,6 +128,20 @@ models:
         tests: [unique, not_null]
       - name: xg_share
         tests: [not_null]
+
+  - name: mart_player_career
+    description: Career totals per skater across all ingested seasons (1917-18 onward); era-gated rate stats.
+    columns:
+      - name: player_id
+        tests: [unique, not_null]
+      - name: points
+        tests: [not_null]
+
+  - name: mart_goalie_career
+    description: Career totals per goalie across all ingested seasons.
+    columns:
+      - name: player_id
+        tests: [unique, not_null]
 
   - name: mart_player_form
     description: Rolling last-10 form per skater per game, with rolling xG for streak decomposition.

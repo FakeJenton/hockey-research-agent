@@ -20,7 +20,13 @@ from nhl_client import API_WEB_BASE, CACHE_DIR, NHLClient, write_ndjson
 
 PRIMARY_SEASON = 20252026
 COMPARISON_SEASON = 20242025
-SEASONS = (PRIMARY_SEASON, COMPARISON_SEASON)
+FIRST_SEASON_START = 1917  # NHL's first season, 1917-18
+# Every season through the primary one. 2004-05 (lockout) returns zero rows
+# and is skipped naturally. Older eras return rosters with nulls (or false
+# zeros, nulled in staging) for stats that were not yet tracked.
+SEASONS = tuple(
+    int(f"{year}{year + 1}") for year in range(FIRST_SEASON_START, PRIMARY_SEASON // 10000 + 1)
+)
 
 NDJSON_DIR = CACHE_DIR / "ndjson"
 
@@ -43,12 +49,13 @@ def main() -> None:
 
     for table, report in REPORTS.items():
         rows: list[dict] = []
-        for season in SEASONS:
+        for index, season in enumerate(SEASONS, start=1):
             season_rows = client.stats_rest(report, season)
             for row in season_rows:
                 row["season_id"] = season
             rows.extend(season_rows)
-            print(f"{table}: season {season} -> {len(season_rows)} rows")
+            if index % 20 == 0 or index == len(SEASONS):
+                print(f"{table}: {index}/{len(SEASONS)} seasons ({len(rows)} rows)", flush=True)
         count = write_ndjson(rows, NDJSON_DIR / f"{table}.ndjson")
         print(f"{table}: {count} total rows written")
 
