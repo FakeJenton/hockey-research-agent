@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { BarList, TrendChart } from "@/lib/charts";
+import { humanizeColumn, labelMatchesRaw } from "@/lib/labels";
 
 type Exchange = {
   question: string;
@@ -382,7 +383,7 @@ function ResultChart({ rows }: { rows: Record<string, unknown>[] }) {
           >
             {numericColumns.map((column) => (
               <option key={column} value={column}>
-                {column}
+                {labelMatchesRaw(column) ? humanizeColumn(column) : `${humanizeColumn(column)} (${column})`}
               </option>
             ))}
           </select>
@@ -427,7 +428,10 @@ function DataTable({ rows }: { rows: Record<string, unknown>[] }) {
                 key={column}
                 className={`px-3 py-2 font-medium ${numeric.has(column) ? "text-right" : ""}`}
               >
-                {column}
+                {humanizeColumn(column)}
+                {!labelMatchesRaw(column) && (
+                  <span className="ml-1 font-normal lowercase text-zinc-600">({column})</span>
+                )}
               </th>
             ))}
           </tr>
