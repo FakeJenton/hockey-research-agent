@@ -20,8 +20,8 @@ type Exchange = {
 const EXAMPLE_QUESTIONS = [
   "Which teams most outperformed their expected goals this season?",
   "How did Sidney Crosby produce over his last 10 games?",
+  "How do Wayne Gretzky's career numbers compare to Gordie Howe's?",
   "How has Toronto's penalty kill trended over their last 15 games?",
-  "How did teams perform on the second night of back-to-backs?",
 ];
 
 export default function ResearchPage() {
@@ -145,12 +145,13 @@ export default function ResearchPage() {
         <section className="space-y-8 pt-6">
           <div className="max-w-2xl">
             <h2 className="text-3xl font-semibold tracking-tight">
-              Ask anything about the <span className="text-amber-400">2025-26 season</span>
+              Ask anything from <span className="text-amber-400">1917 to today</span>
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-zinc-400">
-              Every answer is real SQL against a tested BigQuery warehouse: two seasons of stats,
-              every game, 153K shots with expected goals. Follow-ups keep the conversation
-              context, and you can always see the queries behind an answer.
+              Every answer is real SQL against a tested BigQuery warehouse: every NHL season
+              since 1917-18, career totals, every 2025-26 game, and 153K shots scored by an
+              expected-goals model. Follow-ups keep the conversation context, and you can always
+              see the queries behind an answer.
             </p>
           </div>
 

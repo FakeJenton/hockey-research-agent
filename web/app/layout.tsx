@@ -51,7 +51,7 @@ export default function RootLayout({
                 <div className="flex items-center gap-2">
                   <h1 className="text-lg font-semibold tracking-tight">Hockey Research Agent</h1>
                   <span className="hidden rounded-full border border-zinc-700 px-2 py-0.5 text-[10px] font-medium text-zinc-400 sm:inline">
-                    2025-26 season
+                    1917-18 → 2025-26
                   </span>
                 </div>
                 <p className="text-xs text-zinc-500">NHL API → BigQuery → dbt → Claude</p>
