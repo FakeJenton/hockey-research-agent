@@ -149,8 +149,8 @@ export default function ResearchPage() {
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-zinc-400">
               Every answer is real SQL against a tested BigQuery warehouse: every NHL season
-              since 1917-18, career totals, every 2025-26 game, and 153K shots scored by an
-              expected-goals model. Follow-ups keep the conversation context, and you can always
+              since 1917-18 including playoffs, career totals, every 2025-26 game through the
+              Cup Final, and 163K shots scored by an expected-goals model. Follow-ups keep the conversation context, and you can always
               see the queries behind an answer.
             </p>
           </div>
