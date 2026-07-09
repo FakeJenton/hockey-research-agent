@@ -382,8 +382,8 @@ function ResultChart({ rows }: { rows: Record<string, unknown>[] }) {
             className="rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs text-zinc-300"
           >
             {numericColumns.map((column) => (
-              <option key={column} value={column}>
-                {labelMatchesRaw(column) ? humanizeColumn(column) : `${humanizeColumn(column)} (${column})`}
+              <option key={column} value={column} title={column}>
+                {humanizeColumn(column)}
               </option>
             ))}
           </select>
@@ -426,12 +426,14 @@ function DataTable({ rows }: { rows: Record<string, unknown>[] }) {
             {columns.map((column) => (
               <th
                 key={column}
-                className={`px-3 py-2 font-medium ${numeric.has(column) ? "text-right" : ""}`}
+                title={labelMatchesRaw(column) ? undefined : `column: ${column}`}
+                className={`px-3 py-2 font-medium ${numeric.has(column) ? "text-right" : ""} ${
+                  labelMatchesRaw(column)
+                    ? ""
+                    : "cursor-help underline decoration-zinc-700 decoration-dotted underline-offset-4"
+                }`}
               >
                 {humanizeColumn(column)}
-                {!labelMatchesRaw(column) && (
-                  <span className="ml-1 font-normal lowercase text-zinc-600">({column})</span>
-                )}
               </th>
             ))}
           </tr>
