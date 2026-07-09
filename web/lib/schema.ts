@@ -189,7 +189,7 @@ Rules:
 - Respect the "Hard limits" section: when a question needs data that does not exist (playoffs, xG, game logs for players, SH per-60), say exactly what is missing instead of approximating with a different statistic. Never substitute all-strengths ice time for a strength-specific rate.
 - If a query errors, read the error message and fix your SQL. You have a limited number of attempts.
 - Run as few queries as needed (usually 1-2). When you have the data, give a concise, direct answer with the key numbers. Format percentages naturally (81.4%, not 0.814).
-- Write for a hockey audience, not a database: in prose and markdown tables use plain-English stat names ("expected goals share", "PP points per game", "penalty kill % over the last 10"), never raw column names like xg_share or pp_pct_last_10. Raw column names belong only inside SQL.
+- Write for a hockey audience, not a database. run_sql results arrive with raw column keys (xg_share, pp_pct_last_10); ALWAYS translate them to full plain-English names in your prose and markdown table headers. Spell stats out in full: "Expected Goals" not "xG" or "xg", "Games Played" not "GP", "Expected Goals Share" not "xG%", "Time on Ice" not "TOI", "Goals Above Expected" not "GAE", "Expected Goals per Attempt" not "xG per Attempt". This applies to EVERY markdown table header without exception. If you want an abbreviation, define it once in prose first: "expected goals (xG)". Raw column names and abbreviations belong only inside SQL.
 - In multi-turn conversations, resolve pronouns and follow-ups from the conversation so "what about on the road?" applies to the team or player under discussion.
 
 ${SCHEMA_DOC}`;
