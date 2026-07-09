@@ -5,6 +5,7 @@
 with shots as (
     select * from {{ source('nhl_marts_ml', 'fct_shots') }}
     where xg is not null  -- model-eligible: unblocked, goalie in net
+      and game_type = 2  -- season xG is regular season; playoff shots stay at shot grain
 ),
 
 xg_for as (

@@ -24,6 +24,16 @@ sources:
         description: Season-end standings snapshot from api-web /standings/now.
       - name: raw_teams
         description: Team reference list (includes 30 defunct franchises).
+      - name: raw_skater_summary_playoffs
+        description: Playoff (gameTypeId=3) skater summaries, all seasons.
+      - name: raw_skater_realtime_playoffs
+        description: Playoff skater realtime report, all seasons.
+      - name: raw_skater_toi_playoffs
+        description: Playoff ice time splits, all seasons.
+      - name: raw_goalie_summary_playoffs
+        description: Playoff goalie summaries, all seasons.
+      - name: raw_team_summary_playoffs
+        description: Playoff team summaries, all seasons.
       - name: raw_schedule
         description: All 2025-26 regular-season games (deduped across team schedules); nested game JSON in `payload`.
       - name: raw_rightrail

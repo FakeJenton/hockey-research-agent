@@ -62,10 +62,12 @@ def train_and_score(shots: pd.DataFrame) -> pd.DataFrame:
         shots["event_type"].isin(["shot-on-goal", "missed-shot", "goal"])
         & ~shots["is_empty_net"].astype(bool)
     ].copy()
+    # fit on regular season only; playoff attempts are scored out-of-sample
+    training = eligible[eligible["game_type"] == 2]
     print(f"model-eligible (unblocked, goalie in net): {len(eligible)}")
 
-    features, encoder = build_features(eligible)
-    target = eligible["is_goal"].astype(int).to_numpy()
+    features, encoder = build_features(training)
+    target = training["is_goal"].astype(int).to_numpy()
 
     x_train, x_test, y_train, y_test = train_test_split(
         features, target, test_size=0.2, random_state=RANDOM_STATE, stratify=target
@@ -78,7 +80,8 @@ def train_and_score(shots: pd.DataFrame) -> pd.DataFrame:
     print(f"holdout AUC: {auc:.4f}")
     print(f"holdout calibration: predicted {holdout_probability.sum():.1f} goals vs actual {y_test.sum()}")
 
-    eligible["xg"] = np.round(model.predict_proba(features)[:, 1], 5)
+    all_features, _ = build_features(eligible, encoder)
+    eligible["xg"] = np.round(model.predict_proba(all_features)[:, 1], 5)
     league_predicted = eligible["xg"].sum()
     league_actual = eligible["is_goal"].sum()
     print(f"league calibration: predicted {league_predicted:.0f} goals vs actual {league_actual}")

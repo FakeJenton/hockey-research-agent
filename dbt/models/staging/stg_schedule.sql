@@ -13,6 +13,8 @@ deduped as (
 
 select
     game_id,
+    -- digits 5-6 of the game id: 02 = regular season, 03 = playoffs
+    cast(substr(cast(game_id as string), 5, 2) as int64) as game_type,
     cast(season_id as int64) as season_id,
     date(json_value(payload, '$.gameDate')) as game_date,
     json_value(payload, '$.gameState') as game_state,

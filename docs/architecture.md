@@ -146,6 +146,15 @@ Season-level reports are ingested for every NHL season, 1917-18 through 2025-26 
 
 Career marts (`mart_player_career`, `mart_goalie_career`) validate exactly against the record book: Gretzky 2,857 points / 894 goals / 1,487 games, Howe 801 goals, Brodeur 691 wins / 125 shutouts, and the real all-time top three goal seasons (92, 87, 86).
 
+## Playoffs
+
+Playoff (gameTypeId=3) data mirrors the regular-season architecture at every grain: season-level reports across all history (21,312 playoff skater-seasons), career playoff marts, and full 2025-26 playoff game/player-game/shot coverage (82 games). Design decisions:
+
+- **Strict separation.** Playoff tables are parallel marts (`mart_player_playoff_*`, `fct_team_playoff_games`, ...) rather than a game_type column on regular-season marts, so existing guarantees (82-game tests, xG calibration, career totals matching the record book) are untouched and the agent can never silently mix the two populations.
+- **Bracket decoding.** The playoff game id encodes round/series/game (2025030415 = round 4, series 1, game 5), so the Stanley Cup champion is derivable: winner of the latest round-4 game (2026: Carolina over Vegas in 6).
+- **xG out-of-sample.** The xG model trains on regular-season shots only and scores playoff attempts out-of-sample; season xG aggregates and the calibration gate stay scoped to the training domain.
+- Validated against the record book: Gretzky 382 playoff points / 122 goals, Roy 151 playoff wins, all exact.
+
 ## Expected goals model
 
 - **Data**: ~160K shot attempts parsed from play-by-play at ingest time (rebound/rush flags need event ordering, which is awkward to reconstruct in SQL, so flattening happens in Python where the sequence exists). Attack direction resolves exactly from `homeTeamDefendingSide` + shooter side, so distance/angle are correct in all zones, not just offensive-zone shots.

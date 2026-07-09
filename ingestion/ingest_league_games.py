@@ -45,9 +45,12 @@ def main() -> None:
     for tricode in tricodes:
         schedule = client.get_json(f"{API_WEB_BASE}/club-schedule-season/{tricode}/{SEASON}")
         for game in schedule["games"]:
-            if game.get("gameType") == 2:
+            # regular season and playoffs; game_type derives from the game id
+            # downstream (digits 5-6: 02 = regular season, 03 = playoffs)
+            if game.get("gameType") in (2, 3):
                 games[game["id"]] = game
-    print(f"unique regular-season games: {len(games)}")
+    regular = sum(1 for g in games.values() if g["gameType"] == 2)
+    print(f"unique games: {len(games)} ({regular} regular season, {len(games) - regular} playoff)")
 
     schedule_rows = [wrap_payload(game_id, game) for game_id, game in sorted(games.items())]
     count = write_ndjson(schedule_rows, NDJSON_DIR / "raw_schedule.ndjson")

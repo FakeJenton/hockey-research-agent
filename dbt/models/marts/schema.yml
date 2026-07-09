@@ -143,6 +143,60 @@ models:
       - name: player_id
         tests: [unique, not_null]
 
+  - name: fct_team_playoff_games
+    description: One row per team per 2025-26 playoff game, with bracket round/series/game decoded from the game id.
+    columns:
+      - name: game_team_key
+        tests: [unique, not_null]
+      - name: result
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['W', 'L']
+      - name: round
+        tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4]
+              quote: false
+
+  - name: fct_player_playoff_games
+    description: Playoff player game logs, 2025-26.
+    columns:
+      - name: player_game_key
+        tests: [unique, not_null]
+
+  - name: mart_player_playoff_season
+    description: Skater playoff stat lines per season, all history.
+    columns:
+      - name: player_season_key
+        tests: [unique, not_null]
+
+  - name: mart_goalie_playoff_season
+    description: Goalie playoff stat lines per season, all history.
+    columns:
+      - name: player_season_key
+        tests: [unique, not_null]
+
+  - name: mart_team_playoff_season
+    description: Team playoff results per season, all history.
+    columns:
+      - name: team_season_key
+        tests: [unique, not_null]
+
+  - name: mart_player_playoff_career
+    description: Career playoff totals per skater.
+    columns:
+      - name: player_id
+        tests: [unique, not_null]
+
+  - name: mart_goalie_playoff_career
+    description: Career playoff totals per goalie.
+    columns:
+      - name: player_id
+        tests: [unique, not_null]
+
   - name: mart_player_form
     description: Rolling last-10 form per skater per game, with rolling xG for streak decomposition.
     config:

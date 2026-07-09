@@ -6,7 +6,7 @@ A miniature hockey R&D data platform: a real pipeline from the public NHL API in
 
 Two core features:
 
-1. **Research Agent**: ask natural-language hockey questions in a multi-turn conversation. Claude translates each question to SQL, executes it against the BigQuery warehouse via tool use, self-corrects on errors, and streams the answer with the supporting data table and the exact SQL it ran (transparency toggle in the UI). A golden-set evaluation harness replays 21 assertion-checked questions, including adversarial ones, against every prompt or schema change.
+1. **Research Agent**: ask natural-language hockey questions in a multi-turn conversation. Claude translates each question to SQL, executes it against the BigQuery warehouse via tool use, self-corrects on errors, and streams the answer with the supporting data table and the exact SQL it ran (transparency toggle in the UI). A golden-set evaluation harness replays 23 assertion-checked questions, including adversarial ones, against every prompt or schema change.
 2. **Player Similarity Engine**: search any NHL skater or goalie (typeahead on first or last name) and get their closest statistical comps: TOI-honest per-60 profiles blended with the prior season, three scout-selectable weight profiles (overall / offense / physical), league percentile ranks on every stat, an age filter, and an AI-generated scouting-style blurb. Visual scouting card included: a percentile radar overlay and side-by-side xG shot maps.
 3. **Leaders + visuals**: a league leaderboards page (scoring, xG volume, finishing above expected, save %, team xG share, hottest closers) rendered as bar charts, and agent answers auto-chart when the result is a time series or ranking (line/bar with a metric picker). All charts are hand-rolled SVG; no chart library.
 
@@ -22,11 +22,11 @@ flowchart LR
         CACHE --> NDJSON["NDJSON files"]
     end
 
-    NDJSON --> RAW[("BigQuery<br/>nhl_raw<br/>13 tables")]
+    NDJSON --> RAW[("BigQuery<br/>nhl_raw<br/>18 tables")]
 
-    subgraph dbt["dbt (53 tests)"]
-        RAW --> STG[("nhl_stg<br/>13 staging views")]
-        STG --> MARTS[("nhl_marts<br/>16 marts")]
+    subgraph dbt["dbt (73 tests)"]
+        RAW --> STG[("nhl_stg<br/>18 staging views")]
+        STG --> MARTS[("nhl_marts<br/>23 marts")]
     end
 
     MARTS --> SIM["ML jobs: similarity + xG<br/>(pandas + scikit-learn)"]
@@ -61,13 +61,14 @@ Daily orchestration is documented as a demonstration Airflow DAG ([airflow/dags/
 
 ## Data
 
-**Every NHL season since 1917-18** at season grain (47,644 skater-seasons, 4,988 goalie-seasons, 1,759 team-seasons), with **2025-26** as the primary season carrying full game, player-game, and shot grain.
+**Every NHL season since 1917-18, regular season AND playoffs**, at season grain (47,644 regular + 21,312 playoff skater-seasons, plus goalies and teams), with **2025-26** as the primary season carrying full game, player-game, and shot grain for both the regular season and the complete playoff run to the Cup.
 
 - Season grain, all history: skater summaries plus the realtime (hits/blocks), timeonice (EV/PP/SH ice time splits), and bios (birth dates, draft) reports; goalie summaries and bios; team summaries; standings. Career marts aggregate per player with era-honest rate stats.
 - Era handling: stats that predate their tracking (shots before 1959-60, TOI before 1997-98, hits/blocks before the modern era) are null, never zero. The API returns false zeros for untracked realtime stats; staging nulls any stat whose league-wide season total is zero, so Gordie Howe has null career hits instead of a fabricated 0. Validated against the record book: Gretzky 2,857 points / 894 goals / 92-goal season, Brodeur 691 wins, all exact.
-- Game grain (2025-26): all 1,312 games of 2025-26 as `fct_team_games` (2,624 team-perspective rows with rest days and back-to-back flags), rolling 5/10/15-game special-teams form for every team, and `fct_player_games` game logs for every skater and goalie.
+- Playoffs: playoff season and career marts across all history (kept strictly separate from regular-season tables so totals are never silently mixed), plus 2025-26 playoff game/player-game/shot grain with bracket round decoding, so "who won the Stanley Cup?" is a query, not a guess.
+- Game grain (2025-26): all 1,312 regular-season games as `fct_team_games` (2,624 team-perspective rows with rest days and back-to-back flags), rolling 5/10/15-game special-teams form for every team, and `fct_player_games` game logs for every skater and goalie.
 - Rolling player form: `mart_player_form` decomposes every skater's last-10 window into production, shot volume, and finishing vs expected (hot streak = real shooting heat or bounce luck).
-- Shot grain: ~153K shot attempts parsed from play-by-play with geometry (distance/angle to the attacked net), strength state, and rebound/rush flags, scored by the xG model below.
+- Shot grain: ~163K shot attempts (regular season + playoffs) parsed from play-by-play with geometry (distance/angle to the attacked net), strength state, and rebound/rush flags, scored by the xG model below.
 
 ### Expected goals model
 
@@ -75,7 +76,7 @@ A logistic regression over unblocked, goalie-in-net shot attempts: distance, ang
 
 ### Data quality, verified two ways
 
-- **53 dbt tests**: unique/not-null keys, accepted values on position groups and game results, and sanity tests that every one of the 32 teams has exactly 82 game rows.
+- **73 dbt tests**: unique/not-null keys, accepted values on position groups and game results, and sanity tests that every one of the 32 teams has exactly 82 game rows.
 - **Cross-source validation**: PIT's season PP% and PK% computed from the 82 individual game rows (24.14% / 81.43%) match the NHL's own season-summary endpoint (24.1379% / 81.4346%) to four decimals. Two independent API surfaces, one consistent warehouse.
 - **A test that caught a real bug**: the NHL assigned Utah a new `teamId` when the franchise rebranded from Utah Hockey Club (id 59) to Utah Mammoth (id 68), same `UTA` tricode. The `unique tri_code` test on `dim_teams` failed with 33 rows for 32 franchises; the fix re-grained the dimension to one row per active franchise and resolves historical seasons through the full team reference.
 
@@ -95,7 +96,7 @@ Operational hardening: per-IP rate limits on the paid endpoints ([web/middleware
 
 ### Evaluation harness
 
-[evals/golden_set.json](evals/golden_set.json) holds 21 verified question/assertion pairs: correct-answer checks (scoring leaders, year-over-year PP improvement), grain checks (game-level questions for arbitrary teams), and adversarial checks (the agent must decline playoff/xG/SH-per-60 questions rather than approximate, and must use the real `ev_points_per_60` column rather than deriving rates from all-strengths ice time). `python evals/run_evals.py <base-url>` replays them and exits non-zero on any failure, so agent accuracy is a tested artifact like the dbt models.
+[evals/golden_set.json](evals/golden_set.json) holds 23 verified question/assertion pairs: correct-answer checks (scoring leaders, year-over-year PP improvement), grain checks (game-level questions for arbitrary teams), and adversarial checks (the agent must decline playoff/xG/SH-per-60 questions rather than approximate, and must use the real `ev_points_per_60` column rather than deriving rates from all-strengths ice time). `python evals/run_evals.py <base-url>` replays them and exits non-zero on any failure, so agent accuracy is a tested artifact like the dbt models.
 
 ## Example questions
 

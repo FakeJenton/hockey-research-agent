@@ -7,5 +7,5 @@ select
     sum(xg) as predicted_goals,
     countif(is_goal) as actual_goals
 from {{ source('nhl_marts_ml', 'fct_shots') }}
-where xg is not null
+where xg is not null and game_type = 2  -- calibrate on the training domain
 having abs(sum(xg) - countif(is_goal)) / countif(is_goal) > 0.05

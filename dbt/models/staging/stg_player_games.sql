@@ -16,6 +16,7 @@ deduped as (
 
 select
     game_id,
+    cast(substr(cast(game_id as string), 5, 2) as int64) as game_type,
     cast(season_id as int64) as season_id,
     date(game_date) as game_date,
     team_abbrev,

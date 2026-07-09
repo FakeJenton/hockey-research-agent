@@ -1,10 +1,7 @@
--- Player game logs: one row per player per 2025-26 game, with a per-player
--- chronological game_number so "last N games" questions are one filter.
--- Boxscores abbreviate names ("S. Crosby"), so the queryable full_name
--- resolves through dim_players.
+-- Playoff player game logs: one row per player per 2025-26 playoff game.
 with player_games as (
     select * from {{ ref('stg_player_games') }}
-    where game_type = 2  -- playoffs live in fct_player_playoff_games
+    where game_type = 3
 ),
 
 players as (
@@ -16,6 +13,7 @@ select
     player_games.game_id,
     player_games.season_id,
     player_games.game_date,
+    cast(substr(cast(player_games.game_id as string), 8, 1) as int64) as round,
     row_number() over (
         partition by player_games.player_id
         order by player_games.game_date, player_games.game_id

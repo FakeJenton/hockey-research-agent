@@ -17,6 +17,7 @@ deduped as (
 
 select
     game_id,
+    cast(substr(cast(game_id as string), 5, 2) as int64) as game_type,
     event_id,
     cast(season_id as int64) as season_id,
     period_number,

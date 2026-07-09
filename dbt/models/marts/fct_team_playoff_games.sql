@@ -1,9 +1,10 @@
--- One row per team per game for every 2025-26 regular season game
--- (1,312 games x 2 perspectives = 2,624 rows). Each row reads from that
--- team's point of view: opponent, score, result, special teams for/against.
+-- One row per team per 2025-26 PLAYOFF game, from that team's perspective.
+-- The playoff game id encodes the bracket: digits 8/9/10 are round, series,
+-- and game-in-series (e.g. 2025030415 = round 4 (Final), series 1, game 5).
+-- No OTL in the playoffs: every game is a W or an L.
 with schedule as (
     select * from {{ ref('stg_schedule') }}
-    where game_type = 2  -- playoffs live in fct_team_playoff_games
+    where game_type = 3
 ),
 
 game_stats as (
@@ -71,34 +72,19 @@ select
     game_id,
     season_id,
     game_date,
+    cast(substr(cast(game_id as string), 8, 1) as int64) as round,
+    cast(substr(cast(game_id as string), 9, 1) as int64) as series,
+    cast(substr(cast(game_id as string), 10, 1) as int64) as game_in_series,
     row_number() over (
         partition by team_abbrev
         order by game_date, game_id
     ) as game_number,
-    -- schedule context: days since this team's previous game (null for the opener)
-    date_diff(
-        game_date,
-        lag(game_date) over (partition by team_abbrev order by game_date, game_id),
-        day
-    ) as rest_days,
-    coalesce(
-        date_diff(
-            game_date,
-            lag(game_date) over (partition by team_abbrev order by game_date, game_id),
-            day
-        ) = 1,
-        false
-    ) as is_back_to_back,
     team_abbrev,
     opponent,
     is_home,
     goals_for,
     goals_against,
-    case
-        when goals_for > goals_against then 'W'
-        when last_period_type = 'REG' then 'L'
-        else 'OTL'
-    end as result,
+    if(goals_for > goals_against, 'W', 'L') as result,
     last_period_type,
     pp_goals_for,
     pp_opportunities,

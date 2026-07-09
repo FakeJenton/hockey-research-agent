@@ -9,7 +9,7 @@
 export const SCHEMA_DOC = `
 ## Warehouse schema (BigQuery dataset: nhl_marts)
 
-Season coverage: mart_player_season, mart_goalie_season, mart_team_season, and the career marts cover EVERY NHL season from 19171918 through 20252026 (season_id format: 19171918 = the 1917-18 season; 20042005 lockout has no rows). Game-grain, shot-grain, similarity, form, and xG tables cover 2025-26 only. Regular season only; there is NO playoff data anywhere. Percentages are decimals (0.814 = 81.4%).
+Season coverage: season-level and career marts cover EVERY NHL season from 19171918 through 20252026 (season_id format: 19171918 = the 1917-18 season; 20042005 lockout has no rows). PLAYOFFS are covered too: playoff season/career marts span all history, and 2025-26 has full playoff game and shot grain. Regular-season and playoff tables are SEPARATE; never mix them in one total, and say which one you are reporting. Game-grain, shot-grain, similarity, form, and xG season tables cover 2025-26 only. Percentages are decimals (0.814 = 81.4%).
 Stat-era coverage (older seasons null these; aggregates skip nulls automatically): shots/shooting_pct from ~1959-60; plus_minus from ~1959-60; faceoff_pct, TOI columns and per-60 rates from ~1997-98; hits/blocked_shots/takeaways/giveaways from the modern era only. Never treat a null-era stat as zero.
 
 ### nhl_marts.dim_players
@@ -89,8 +89,8 @@ Player game logs: one row per PLAYER per GAME, every 2025-26 game, skaters AND g
 - Goalies: saves, shots_against (INT64), save_pct (FLOAT64); skater columns null
 
 ### nhl_marts.fct_shots
-Shot-attempt grain: one row per shot attempt (goal, shot on goal, miss, block) for every 2025-26 game, from play-by-play. 2025-26 only.
-- game_id, event_id (INT64; PK together), season_id, period_number, game_seconds (INT64)
+Shot-attempt grain: one row per shot attempt (goal, shot on goal, miss, block) for every 2025-26 game INCLUDING playoffs, from play-by-play. 2025-26 only.
+- game_id, event_id (INT64; PK together), game_type (INT64: 2 = regular season, 3 = playoffs), season_id, period_number, game_seconds (INT64)
 - event_type (STRING: goal, shot-on-goal, missed-shot, blocked-shot), is_goal (BOOL)
 - shot_type (STRING: wrist, slap, snap, tip-in, backhand, deflected, wrap-around, ...), zone_code (STRING)
 - x_coord, y_coord (INT64), distance_ft, angle_deg (FLOAT64: geometry to the attacked net)
@@ -114,6 +114,15 @@ Rolling form per SKATER per game (2025-26): each row is that player's last-10-ga
 - points_per_gp_last_10, season_points_per_gp, form_delta (FLOAT64: last-10 pace minus season pace; positive = hotter than their own baseline)
 For "hottest right now / at season end" take each player's latest row: QUALIFY ROW_NUMBER() OVER (PARTITION BY player_id ORDER BY player_game_number DESC) = 1, and require games_in_window = 10.
 
+### Playoff tables (same shapes as their regular-season counterparts unless noted)
+- nhl_marts.mart_player_playoff_season: skater playoff stat lines per season, all history (PK player_season_key). Columns like mart_player_season minus percentiles/draft; includes ev_points_per_60/pp_points_per_60 (TOI-era only).
+- nhl_marts.mart_goalie_playoff_season: goalie playoff stat lines per season, all history.
+- nhl_marts.mart_team_playoff_season: team playoff results per season, all history; games_played indicates depth of run.
+- nhl_marts.mart_player_playoff_career / mart_goalie_playoff_career: career PLAYOFF totals (PK player_id).
+- nhl_marts.fct_team_playoff_games: one row per team per 2025-26 playoff game (164 rows). Adds round (1-4; 4 = Stanley Cup Final), series, game_in_series; result is W or L (no OTL in playoffs). The 2025-26 STANLEY CUP CHAMPION is the winner of the latest round-4 game.
+- nhl_marts.fct_player_playoff_games: playoff player game logs, 2025-26.
+- Playoff shot attempts live in fct_shots with game_type = 3 (xg scored by the regular-season model, out-of-sample).
+
 ### nhl_marts.mart_player_similarity
 Statistical comps (2025-26). Skaters: cosine similarity on z-scored per-60 stats blended 75/25 with the prior season, within position group, three weight profiles. Goalies: goalie-specific features, 'overall' profile only.
 - player_id, comp_player_id (INT64), similarity_score (FLOAT64), rank (INT64: 1-25), season_id (INT64)
@@ -122,8 +131,9 @@ Statistical comps (2025-26). Skaters: cosine similarity on z-scored per-60 stats
 Filter profile = 'overall' unless the user asks for an offense- or physicality-weighted comparison. Join comp_player_id to mart_player_season / mart_goalie_season for names and stats.
 
 ## Hard limits (state these instead of working around them)
-- No playoff data, no line combinations, no shift-level or tracking data. Career totals here are REGULAR SEASON only and may differ from published totals that include playoffs.
-- Game-grain and shot-grain data are 2025-26 only; every other season has season grain only.
+- No line combinations, no shift-level or tracking data.
+- Regular-season and playoff stats live in separate tables and must never be summed together; published "career totals" are usually regular season only, which matches mart_player_career.
+- Game-grain and shot-grain data (regular season and playoffs) are 2025-26 only; every other season has season grain only. Series-level playoff history (who won which series before 2025-26) is not derivable from season-grain playoff data beyond games_played depth.
 - Ice time by strength exists ONLY as season-level columns; short-handed per-60 production is not computable (no sh per-60 column) and per-60 splits do not exist at game grain.
 - xG comes from a simple public-features model (geometry, shot type, rebound/rush, strength). It excludes blocked shots and empty-net attempts and knows nothing about screens or pre-shot movement; describe it as "expected goals from shot location and type" if asked about methodology.
 
@@ -143,6 +153,12 @@ SQL: SELECT result, COUNT(*) AS games FROM nhl_marts.fct_team_games g WHERE team
 
 Q: How did Sidney Crosby produce over his last 10 games?
 SQL: SELECT player_game_number, game_date, opponent_abbrev, goals, assists, points, shots, toi_minutes FROM nhl_marts.fct_player_games WHERE full_name = 'Sidney Crosby' AND player_game_number > (SELECT MAX(player_game_number) - 10 FROM nhl_marts.fct_player_games WHERE full_name = 'Sidney Crosby') ORDER BY player_game_number
+
+Q: Who won the Stanley Cup in 2026?
+SQL: SELECT team_abbrev, opponent, goals_for, goals_against, game_date FROM nhl_marts.fct_team_playoff_games WHERE round = 4 AND result = 'W' ORDER BY game_date DESC LIMIT 1
+
+Q: What are Wayne Gretzky's career playoff numbers?
+SQL: SELECT full_name, playoff_seasons, games_played, goals, assists, points FROM nhl_marts.mart_player_playoff_career WHERE full_name = 'Wayne Gretzky'
 
 Q: What are Sidney Crosby's career numbers?
 SQL: SELECT full_name, seasons_played, first_season_id, last_season_id, games_played, goals, assists, points, points_per_gp FROM nhl_marts.mart_player_career WHERE full_name = 'Sidney Crosby'

@@ -42,22 +42,33 @@ REPORTS = {
     "raw_team_summary": "team/summary",
 }
 
+# Playoff (gameTypeId=3) versions of the stat reports. Bios are identical
+# regardless of game type, so they are not re-pulled.
+PLAYOFF_REPORTS = {
+    "raw_skater_summary_playoffs": "skater/summary",
+    "raw_skater_realtime_playoffs": "skater/realtime",
+    "raw_skater_toi_playoffs": "skater/timeonice",
+    "raw_goalie_summary_playoffs": "goalie/summary",
+    "raw_team_summary_playoffs": "team/summary",
+}
+
 
 def main() -> None:
     """Fetch all season-level reports for both seasons plus standings."""
     client = NHLClient()
 
-    for table, report in REPORTS.items():
-        rows: list[dict] = []
-        for index, season in enumerate(SEASONS, start=1):
-            season_rows = client.stats_rest(report, season)
-            for row in season_rows:
-                row["season_id"] = season
-            rows.extend(season_rows)
-            if index % 20 == 0 or index == len(SEASONS):
-                print(f"{table}: {index}/{len(SEASONS)} seasons ({len(rows)} rows)", flush=True)
-        count = write_ndjson(rows, NDJSON_DIR / f"{table}.ndjson")
-        print(f"{table}: {count} total rows written")
+    for game_type_id, reports in ((2, REPORTS), (3, PLAYOFF_REPORTS)):
+        for table, report in reports.items():
+            rows: list[dict] = []
+            for index, season in enumerate(SEASONS, start=1):
+                season_rows = client.stats_rest(report, season, game_type_id=game_type_id)
+                for row in season_rows:
+                    row["season_id"] = season
+                rows.extend(season_rows)
+                if index % 20 == 0 or index == len(SEASONS):
+                    print(f"{table}: {index}/{len(SEASONS)} seasons ({len(rows)} rows)", flush=True)
+            count = write_ndjson(rows, NDJSON_DIR / f"{table}.ndjson")
+            print(f"{table}: {count} total rows written")
 
     standings = client.get_json(f"{API_WEB_BASE}/standings/now")["standings"]
     for row in standings:

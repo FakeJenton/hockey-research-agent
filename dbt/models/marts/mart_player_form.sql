@@ -14,7 +14,7 @@ game_xg as (
         shooting_player_id as player_id,
         sum(xg) as xg
     from {{ source('nhl_marts_ml', 'fct_shots') }}
-    where xg is not null
+    where xg is not null and game_type = 2
     group by game_id, player_id
 ),
 
